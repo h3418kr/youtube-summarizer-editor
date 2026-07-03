@@ -332,40 +332,85 @@ def build_srt(whisper_result, segments: List[Tuple[float, float]],
     return "\n".join(entries)
 
 
-def make_transition_sfx(tmpdir: str) -> str:
-    """짧은 '휙' 장면전환 효과음을 ffmpeg 합성으로 생성 (별도 음원 파일 불필요)."""
-    sfx = os.path.join(tmpdir, "whoosh.wav")
+# 화면 전환(비디오) 스타일: key -> 사람이 읽는 이름
+TRANSITION_STYLES = {
+    "none":  "없음",
+    "black": "암전(fade to black)",
+    "white": "화이트 플래시",
+}
+
+# 전환 효과음(오디오) 종류: key -> (lavfi 입력, 오디오 필터, 길이(초), 사람이 읽는 이름)
+SFX_SPECS = {
+    "none": (None, None, 0.0, "없음"),
+    "whoosh": (
+        "anoisesrc=d=0.5:c=pink:a=0.85:r=44100",
+        "afade=t=in:st=0:d=0.25,afade=t=out:st=0.25:d=0.25,"
+        "highpass=f=250,lowpass=f=5500,volume=1.6",
+        0.5, "휙(whoosh)",
+    ),
+    "swoosh": (
+        "anoisesrc=d=0.45:c=white:a=0.8:r=44100",
+        "afade=t=in:st=0:d=0.30,afade=t=out:st=0.15:d=0.30,"
+        "highpass=f=600,lowpass=f=9000,volume=1.4",
+        0.45, "스와이프(swoosh)",
+    ),
+    "beep": (
+        "sine=f=880:d=0.25:r=44100",
+        "afade=t=in:st=0:d=0.02,afade=t=out:st=0.18:d=0.07,volume=0.7",
+        0.25, "삑(beep)",
+    ),
+    "pop": (
+        "sine=f=320:d=0.12:r=44100",
+        "afade=t=in:st=0:d=0.005,afade=t=out:st=0.04:d=0.08,volume=1.3",
+        0.12, "팝(pop)",
+    ),
+    "impact": (
+        "sine=f=90:d=0.55:r=44100",
+        "afade=t=in:st=0:d=0.01,afade=t=out:st=0.20:d=0.35,volume=2.0",
+        0.55, "임팩트(impact)",
+    ),
+}
+
+
+def make_sfx(tmpdir: str, kind: str) -> Tuple[str, float]:
+    """선택한 종류의 장면전환 효과음을 ffmpeg 합성으로 생성.
+    (path, 길이(초)) 반환. 'none' 이거나 실패 시 ("", 0.0)."""
+    spec = SFX_SPECS.get(kind)
+    if not spec or spec[0] is None:
+        return "", 0.0
+    lavfi_input, af, length, _ = spec
+    sfx = os.path.join(tmpdir, f"sfx_{kind}.wav")
     try:
         run_ffmpeg(
             ["ffmpeg", "-y",
-             "-f", "lavfi", "-i", "anoisesrc=d=0.5:c=pink:a=0.85:r=44100",
-             "-af", ("afade=t=in:st=0:d=0.25,afade=t=out:st=0.25:d=0.25,"
-                     "highpass=f=250,lowpass=f=5500,volume=1.6"),
+             "-f", "lavfi", "-i", lavfi_input,
+             "-af", af,
              "-ac", "2", "-ar", "44100", sfx],
         )
-        return sfx
+        return sfx, length
     except Exception as e:
         print(f"  (전환 효과음 생성 실패, 효과음 없이 진행: {e})")
-        return ""
+        return "", 0.0
 
 
 def cut_and_concat(video_path: str, segments: List[Tuple[float, float]], out_path: str,
-                   tmpdir: str, transition: bool = True, fade: float = 0.6) -> None:
+                   tmpdir: str, transition_style: str = "black",
+                   sfx_kind: str = "whoosh", fade: float = 0.6) -> None:
     """
     Cut each segment and concatenate.
     -ss before -i  : fast keyframe seek
     re-encode      : avoids frozen frames from keyframe misalignment
 
-    transition=True 이면 각 구간에 암전(fade to/from black) 화면전환과
-    전환 지점 효과음('휙')을 추가한다. 클립 내부에서 처리하므로
-    전체 길이/자막 타이밍은 변하지 않는다.
+    transition_style 이 'black'/'white' 이면 각 구간에 암전/화이트 화면전환을,
+    sfx_kind 가 'none' 이 아니면 전환 지점 효과음을 추가한다. 클립 내부에서
+    처리하므로 전체 길이/자막 타이밍은 변하지 않는다.
 
     각 구간은 MPEG-TS(.ts)로 인코딩한 뒤 이어붙인다. MP4를 concat -c copy
     로 이어붙이면 잘림 지점의 타임스탬프/edit-list 가 누적되어 재생 길이가
     수십 시간으로 깨지는 문제가 있어, 타임스탬프가 안전한 TS 로 처리한다.
     """
-    whoosh_len = 0.5
-    sfx_path = make_transition_sfx(tmpdir) if transition else ""
+    has_video_fx = transition_style in ("black", "white")
+    sfx_path, sfx_len = make_sfx(tmpdir, sfx_kind)
 
     segment_files = []
     n = len(segments)
@@ -373,40 +418,45 @@ def cut_and_concat(video_path: str, segments: List[Tuple[float, float]], out_pat
         seg_path = os.path.join(tmpdir, f"seg_{i:04d}.ts")
         duration = end - start
 
-        if transition and duration > 1.0:
+        add_sfx = bool(sfx_path) and i < n - 1   # 마지막 클립 뒤엔 효과음 없음
+        do_fx = (has_video_fx or add_sfx) and duration > 1.0
+
+        if do_fx:
             f = min(fade, duration / 4)          # 매우 짧은 클립 보호
             af = min(f, 0.15)                    # 오디오 페이드 인
-            add_sfx = bool(sfx_path) and i < n - 1  # 마지막 클립 뒤엔 효과음 없음
-            vf = (f"fade=t=in:st=0:d={f:.3f},"
-                  f"fade=t=out:st={duration - f:.3f}:d={f:.3f}")
 
-            if add_sfx:
-                delay_ms = int(max(0.0, duration - whoosh_len) * 1000)
-                filter_complex = (
-                    f"[0:v]{vf}[v];"
-                    f"[0:a]afade=t=in:st=0:d={af:.3f},"
-                    f"afade=t=out:st={duration - f:.3f}:d={f:.3f}[a0];"
-                    f"[1:a]adelay={delay_ms}|{delay_ms}[a1];"
-                    f"[a0][a1]amix=inputs=2:duration=first:normalize=0[a]"
-                )
-                # -ss/-t 는 반드시 video 입력(-i video_path) '앞'에 두어
-                # 해당 입력만 잘라낸다. sfx 입력 앞에 -t 가 오면 video 가
-                # 안 잘리고 원본 끝까지 읽혀 파일이 수십 시간으로 깨진다.
-                cmd = ["ffmpeg", "-y",
-                       "-ss", str(start), "-t", str(duration), "-i", video_path,
-                       "-i", sfx_path,
-                       "-filter_complex", filter_complex,
-                       "-map", "[v]", "-map", "[a]"]
+            # ── 비디오 브랜치 ──
+            if has_video_fx:
+                color = "white" if transition_style == "white" else "black"
+                vfilter = (f"[0:v]fade=t=in:st=0:d={f:.3f}:color={color},"
+                           f"fade=t=out:st={duration - f:.3f}:d={f:.3f}:color={color}[v]")
+                vmap = "[v]"
             else:
-                filter_complex = (
-                    f"[0:v]{vf}[v];"
-                    f"[0:a]afade=t=in:st=0:d={af:.3f},"
-                    f"afade=t=out:st={duration - f:.3f}:d={f:.3f}[a]"
-                )
-                cmd = ["ffmpeg", "-y",
-                       "-ss", str(start), "-t", str(duration), "-i", video_path,
-                       "-filter_complex", filter_complex,
-                       "-map", "[v]", "-map", "[a]"]
+                vfilter = ""
+                vmap = "0:v"
+
+            # ── 오디오 브랜치 ──
+            afilter_base = (f"[0:a]afade=t=in:st=0:d={af:.3f},"
+                            f"afade=t=out:st={duration - f:.3f}:d={f:.3f}")
+            if add_sfx:
+                delay_ms = int(max(0.0, duration - sfx_len) * 1000)
+                afilter = (afilter_base + "[a0];"
+                           f"[1:a]adelay={delay_ms}|{delay_ms}[a1];"
+                           f"[a0][a1]amix=inputs=2:duration=first:normalize=0[a]")
+            else:
+                afilter = afilter_base + "[a]"
+
+            filter_complex = ";".join(p for p in (vfilter, afilter) if p)
+
+            # -ss/-t 는 반드시 video 입력(-i video_path) '앞'에 두어
+            # 해당 입력만 잘라낸다. sfx 입력 앞에 -t 가 오면 video 가
+            # 안 잘리고 원본 끝까지 읽혀 파일이 수십 시간으로 깨진다.
+            cmd = ["ffmpeg", "-y",
+                   "-ss", str(start), "-t", str(duration), "-i", video_path]
+            if add_sfx:
+                cmd += ["-i", sfx_path]
+            cmd += ["-filter_complex", filter_complex,
+                    "-map", vmap, "-map", "[a]"]
         else:
             cmd = ["ffmpeg", "-y",
                    "-ss", str(start), "-t", str(duration), "-i", video_path]
@@ -463,13 +513,24 @@ def main():
     parser.add_argument("--max-height", type=int, default=720,
                         choices=[360, 480, 720, 1080],
                         help="Max video resolution height (default: 720)")
-    parser.add_argument("--no-transition", dest="transition", action="store_false",
-                        help="장면 전환 효과(암전) 및 전환 효과음을 끕니다")
+    parser.add_argument("--transition-style", default="black",
+                        choices=list(TRANSITION_STYLES.keys()),
+                        help="화면 전환 스타일: none(없음) / black(암전) / white(화이트 플래시). 기본 black")
+    parser.add_argument("--sfx", dest="sfx_kind", default="whoosh",
+                        choices=list(SFX_SPECS.keys()),
+                        help="전환 효과음: none / whoosh(휙) / swoosh(스와이프) / "
+                             "beep(삑) / pop(팝) / impact(임팩트). 기본 whoosh")
+    parser.add_argument("--no-transition", dest="no_transition", action="store_true",
+                        help="화면 전환 효과와 전환 효과음을 모두 끕니다 "
+                             "(--transition-style none --sfx none 과 동일)")
     parser.add_argument("--bridge-gap", type=float, default=8.0,
                         help="이 시간(초) 이하로 가까운 하이라이트는 같은 내용으로 보고 "
                              "하나로 이어붙입니다 (전환 효과 없이). 기본 8초")
-    parser.set_defaults(transition=True)
     args = parser.parse_args()
+
+    if args.no_transition:
+        args.transition_style = "none"
+        args.sfx_kind = "none"
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -512,9 +573,11 @@ def main():
         out_video = str(output_dir / f"{safe_title}_summary.mp4")
         out_srt   = str(output_dir / f"{safe_title}_summary.srt")
 
-        fx = "장면전환+효과음 적용" if args.transition else "전환 효과 없음"
-        print(f"[6/6] Cutting and concatenating segments... ({fx})")
-        cut_and_concat(video_path, segments, out_video, tmpdir, transition=args.transition)
+        v_name = TRANSITION_STYLES.get(args.transition_style, args.transition_style)
+        s_name = SFX_SPECS.get(args.sfx_kind, (None, None, 0, args.sfx_kind))[3]
+        print(f"[6/6] Cutting and concatenating segments... (화면전환: {v_name} / 효과음: {s_name})")
+        cut_and_concat(video_path, segments, out_video, tmpdir,
+                       transition_style=args.transition_style, sfx_kind=args.sfx_kind)
 
         print(f"[7/7] Building subtitles...")
         srt_content = build_srt(whisper_result, segments)

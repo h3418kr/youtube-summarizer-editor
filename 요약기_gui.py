@@ -108,7 +108,8 @@ def build_summarizer_tab(nb):
     before_var = tk.StringVar(value="5")
     after_var = tk.StringVar(value="20")
     quality_var = tk.StringVar(value="720")
-    transition_var = tk.BooleanVar(value=True)
+    transition_var = tk.StringVar(value="암전 (기본)")
+    sfx_var = tk.StringVar(value="휙 (기본)")
     bridge_var = tk.StringVar(value="8")
 
     ttk.Label(opt, text="목표 길이 (분)").grid(row=0, column=0, sticky="w", padx=(8, 4), pady=3)
@@ -135,9 +136,16 @@ def build_summarizer_tab(nb):
     ttk.Label(opt, text="(시간차가 이보다 짧으면 한 장면으로 이어붙임)").grid(
         row=3, column=2, columnspan=2, sticky="w", padx=(16, 4), pady=3)
 
-    ttk.Checkbutton(opt, text="장면 전환 효과 + 효과음 (서로 다른 하이라이트 사이)",
-                    variable=transition_var).grid(
-        row=4, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(6, 3))
+    ttk.Label(opt, text="화면 전환").grid(row=4, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
+    ttk.Combobox(opt, textvariable=transition_var,
+                 values=["없음", "암전 (기본)", "화이트 플래시"],
+                 width=14, state="readonly").grid(row=4, column=1, sticky="w", pady=(6, 3))
+    ttk.Label(opt, text="전환 효과음").grid(row=4, column=2, sticky="w", padx=(16, 4), pady=(6, 3))
+    ttk.Combobox(opt, textvariable=sfx_var,
+                 values=["없음", "휙 (기본)", "스와이프", "삑", "팝", "임팩트"],
+                 width=14, state="readonly").grid(row=4, column=3, sticky="w", pady=(6, 3))
+    ttk.Label(opt, text="(서로 다른 하이라이트 사이에 적용됩니다)").grid(
+        row=5, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
 
     # 실행 버튼
     btn_label_var = tk.StringVar(value="다운로드 & 요약")
@@ -166,8 +174,11 @@ def build_summarizer_tab(nb):
             "--max-height", quality_var.get(),
             "--bridge-gap", bridge_var.get(),
         ]
-        if not transition_var.get():
-            cmd.append("--no-transition")
+        trans_map = {"없음": "none", "암전 (기본)": "black", "화이트 플래시": "white"}
+        sfx_map = {"없음": "none", "휙 (기본)": "whoosh", "스와이프": "swoosh",
+                   "삑": "beep", "팝": "pop", "임팩트": "impact"}
+        cmd += ["--transition-style", trans_map.get(transition_var.get(), "black"),
+                "--sfx", sfx_map.get(sfx_var.get(), "whoosh")]
 
         log.config(state="normal")
         log.delete("1.0", tk.END)

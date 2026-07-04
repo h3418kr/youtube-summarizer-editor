@@ -109,6 +109,7 @@ Below is the actual program screen. Just follow the numbers.
 | Scene merge (s) | Segments closer than this are stitched smoothly | `8` s |
 | Transition | Between highlights: none / fade to black / white flash | `fade to black` |
 | Transition SFX | SFX at the transition: none / whoosh / swoosh / beep / pop / impact | `whoosh` |
+| Keep-original folder | Folder to preserve the downloaded source video (empty = delete after processing) | empty |
 
 **Button: click "Download & Summarize"** → download → analyze → edit, all automatic.
 When finished, two files appear in the output folder:
@@ -116,6 +117,32 @@ When finished, two files appear in the output folder:
 - `title_summary.srt` — subtitle file
 
 > The medium / large models are downloaded automatically over the internet on first use and stored in the `models` folder.
+> Set a **keep-original folder** and the source video is preserved, so you can re-edit it later in the **Manual highlights tab**.
+
+---
+
+### STEP 1-B — Manual highlights tab (build from your own video)
+
+Use this when you want to build a summary from a **video file you already have** plus **time ranges you pick yourself**, instead of downloading a URL and auto-analyzing. (An alternative to the Summarize tab.)
+
+| Item | Description | Default |
+|------|------|--------|
+| Video file | Select the local video (mp4, etc.) to edit | — |
+| Output folder | Where the result files are saved | `output` |
+| Output name | Result file name (empty = use source filename) | empty |
+| Highlight ranges | One `start - end` per line | — |
+| Transition / SFX | Same as the Summarize tab | `fade to black` / `whoosh` |
+| Generate subtitles | Auto-generate Whisper subtitles (SRT) from the result on/off | off |
+
+Range input supports `SS` / `MM:SS` / `HH:MM:SS`:
+```
+1:23 - 2:05
+83 - 125
+00:01:23,000 --> 00:02:05,000
+```
+> Separators `-` `~` `->` `-->` are all accepted, and lines starting with `#` are treated as notes and ignored.
+
+**Button: click "Make highlights"** → cuts and stitches only the ranges you entered into `name_highlight.mp4` (+ `name_highlight.srt`).
 
 ---
 

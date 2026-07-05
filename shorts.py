@@ -39,21 +39,66 @@ SHORTS_MAX_SEC = 180  # 유튜브 Shorts 최대 3분
 
 MODE_NAMES = {"center": "중앙 크롭", "blur": "블러 배경"}
 
+# 자막 세로 위치: key -> (사람이 읽는 이름, ASS Alignment, 기준 여백 MarginV)
+#   하단은 아래에서, 상단은 위에서 그만큼 띄우고, 중앙은 화면 정중앙(여백 무시).
+SUB_POS = {
+    "bottom": ("하단", 2, 260),
+    "center": ("중앙", 5, 0),
+    "top": ("상단", 8, 260),
+}
 
-def to_vertical(src: str, out_path: str, mode: str, srt_name: str = "",
-                cwd: str = None, font: str = "Malgun Gothic",
-                font_size: int = 20) -> None:
-    """가로 영상을 1080x1920 세로로 변환하고, srt_name 이 있으면 자막도 새긴다.
+
+def _ass_time(t: str) -> str:
+    """'HH:MM:SS,mmm' (SRT) -> 'H:MM:SS.cs' (ASS)."""
+    hh, mm, rest = t.strip().split(":")
+    ss, ms = rest.split(",")
+    return f"{int(hh)}:{mm}:{ss}.{int(ms)//10:02d}"
+
+
+def build_caption_ass(srt_content: str, w: int, h: int, font: str,
+                      font_size: int, sub_pos: str) -> str:
+    """Whisper SRT 를 세로 쇼츠용 ASS 자막으로 변환.
+
+    PlayResX/Y 를 실제 영상 크기(1080x1920)로 지정하므로 FontSize·MarginV 가
+    '실제 픽셀' 단위가 된다. (SRT 를 subtitles 필터에 바로 넣으면 기본 스크립트
+    해상도 288 기준으로 렌더되어 글자가 6~7배로 확대되는 문제를 피한다.)
+    """
+    _name, align, margin_v = SUB_POS.get(sub_pos, SUB_POS["bottom"])
+    head = (
+        "[Script Info]\nScriptType: v4.00+\n"
+        f"PlayResX: {w}\nPlayResY: {h}\n"
+        "ScaledBorderAndShadow: yes\nWrapStyle: 0\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, "
+        "Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
+        "MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: Cap,{font},{font_size},&H00FFFFFF,&HE0000000,&H00000000,"
+        f"-1,0,0,0,100,100,0,0,1,4,2,{align},70,70,{margin_v},1\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, "
+        "MarginV, Effect, Text\n"
+    )
+    events = []
+    for block in srt_content.strip().split("\n\n"):
+        lines = [ln for ln in block.splitlines() if ln.strip()]
+        if len(lines) < 2 or "-->" not in lines[1]:
+            continue
+        start_s, end_s = [x.strip() for x in lines[1].split("-->")]
+        text = "\\N".join(lines[2:]).replace("{", "(").replace("}", ")")
+        events.append(
+            f"Dialogue: 0,{_ass_time(start_s)},{_ass_time(end_s)},Cap,,0,0,0,,{text}")
+    return head + "\n".join(events) + "\n"
+
+
+def to_vertical(src: str, out_path: str, mode: str, ass_name: str = "",
+                cwd: str = None) -> None:
+    """가로 영상을 1080x1920 세로로 변환하고, ass_name 이 있으면 자막도 새긴다.
 
     subtitles 필터 경로는 Windows 이스케이프가 까다로워 finalize 와 같은 방식으로
-    SRT 를 작업 폴더(cwd)에 두고 상대 경로로 참조한다.
+    자막 파일을 작업 폴더(cwd)에 두고 상대 경로로 참조한다.
     """
-    sub_filter = ""
-    if srt_name:
-        style = (f"FontName={font},FontSize={font_size},"
-                 f"PrimaryColour=&H00FFFFFF,OutlineColour=&H90000000,"
-                 f"BorderStyle=1,Outline=3,Shadow=1,MarginV=110,Alignment=2")
-        sub_filter = f",subtitles={srt_name}:force_style='{style}'"
+    sub_filter = f",subtitles={ass_name}" if ass_name else ""
 
     if mode == "blur":
         # 배경: 화면을 꽉 채운 뒤 블러 / 전경: 원본 비율 그대로 가운데 배치
@@ -98,8 +143,10 @@ def main():
     parser.add_argument("--prompt", default=GAME_PROMPT,
                         help="Whisper initial_prompt (전문 용어 힌트)")
     parser.add_argument("--font", default="Malgun Gothic", help="자막 글꼴")
-    parser.add_argument("--font-size", type=int, default=20,
-                        help="자막 크기 (세로 화면 기준, 기본 20)")
+    parser.add_argument("--font-size", type=int, default=54,
+                        help="자막 크기 (1080x1920 실제 픽셀 기준, 기본 54)")
+    parser.add_argument("--sub-pos", default="bottom", choices=list(SUB_POS.keys()),
+                        help="자막 세로 위치: bottom(하단) / center(중앙) / top(상단). 기본 하단")
     args = parser.parse_args()
 
     if not os.path.isfile(args.video):
@@ -164,7 +211,7 @@ def main():
                        transition_style="none", sfx_kind="none")
 
         # 2) (선택) 자막 생성 — 이어붙인 짧은 클립에서 전사하므로 빠르다
-        srt_name = ""
+        ass_name = ""
         if args.subtitles:
             print(f"[2/3] Whisper 자막 생성 ({args.model})...")
             wav_path = os.path.join(tmpdir, "audio.wav")
@@ -173,18 +220,23 @@ def main():
             flat_dur = get_duration(flat)
             srt_content = build_srt(whisper_result, [(0.0, flat_dur)])
             if srt_content:
-                srt_name = "subs.srt"
-                with open(os.path.join(tmpdir, srt_name), "w", encoding="utf-8") as f:
-                    f.write(srt_content)
+                # 사용자 제공용 SRT 는 그대로 저장
                 with open(out_srt, "w", encoding="utf-8") as f:
                     f.write(srt_content)
+                # 번인용은 해상도/크기/위치를 정확히 제어하는 ASS 로 만든다
+                ass_name = "captions.ass"
+                pos_name = SUB_POS.get(args.sub_pos, SUB_POS["bottom"])[0]
+                print(f"  자막 위치: {pos_name} / 크기: {args.font_size}px")
+                ass = build_caption_ass(srt_content, SHORTS_W, SHORTS_H,
+                                        args.font, args.font_size, args.sub_pos)
+                with open(os.path.join(tmpdir, ass_name), "w", encoding="utf-8") as f:
+                    f.write(ass)
             else:
                 print("  (인식된 자막이 없어 자막 없이 진행)")
 
         # 3) 세로 변환 + 자막 번인
         print(f"[{steps}/{steps}] 1080x1920 세로 변환...")
-        to_vertical(flat, out_video, args.mode, srt_name=srt_name,
-                    cwd=tmpdir, font=args.font, font_size=args.font_size)
+        to_vertical(flat, out_video, args.mode, ass_name=ass_name, cwd=tmpdir)
 
     print(f"\nDone!")
     print(f"  Shorts : {out_video}")

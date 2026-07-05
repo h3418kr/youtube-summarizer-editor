@@ -26,6 +26,7 @@ TRANS_CODES = ["none", "black", "white"]
 SFX_CODES = ["none", "whoosh", "swoosh", "beep", "pop", "impact"]
 WMPOS_CODES = ["tl", "tr", "bl", "br"]  # 좌상 우상 좌하 우하
 SHORTS_MODE_CODES = ["center", "blur"]
+SHORTS_SUBPOS_CODES = ["bottom", "center", "top"]  # 하단 중앙 상단
 
 # 분석 전용 모드 결과를 수동 하이라이트 탭으로 넘길 때 쓰는 위젯 참조
 MANUAL_TAB = {}
@@ -107,6 +108,8 @@ STRINGS = {
         "shorts_mode_hint": "(중앙 크롭: 화면 가운데 확대 / 블러 배경: 원본 그대로 + 위아래 블러)",
         "shorts_subtitles": "자막 자동 생성해 크게 새겨넣기 (Whisper)",
         "shorts_font_size": "자막 크기",
+        "shorts_sub_pos": "자막 위치",
+        "shorts_sub_pos_values": ["하단 (기본)", "중앙", "상단"],
         "btn_shorts": "쇼츠 만들기",
         "msg_shorts_done": ("쇼츠 영상이 저장되었습니다.\n\n폴더: {folder}\n\n"
                             "• _shorts.mp4  — 1080x1920 세로 영상"),
@@ -233,6 +236,8 @@ STRINGS = {
         "shorts_mode_hint": "(center crop: zoom into the middle / blur: full frame + blurred bars)",
         "shorts_subtitles": "Auto-generate big burned-in subtitles (Whisper)",
         "shorts_font_size": "Subtitle size",
+        "shorts_sub_pos": "Subtitle position",
+        "shorts_sub_pos_values": ["Bottom (default)", "Center", "Top"],
         "btn_shorts": "Make Short",
         "msg_shorts_done": ("Short saved.\n\nFolder: {folder}\n\n"
                             "- _shorts.mp4  — 1080x1920 vertical video"),
@@ -819,24 +824,30 @@ def build_shorts_tab(nb):
     mode_combo.current(0)  # center
     reg("combo", (mode_combo, "shorts_mode_values"), "shorts_mode_values")
     mode_combo.grid(row=0, column=1, sticky="w", pady=3)
-    fontsize_var = tk.StringVar(value="20")
+    fontsize_var = tk.StringVar(value="54")
     _label(opt, "shorts_font_size", row=0, column=2, sticky="w", padx=(16, 4), pady=3)
     ttk.Entry(opt, textvariable=fontsize_var, width=6).grid(row=0, column=3, sticky="w", pady=3)
     _label(opt, "shorts_mode_hint", row=1, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
 
+    _label(opt, "shorts_sub_pos", row=2, column=0, sticky="w", padx=(8, 4), pady=3)
+    subpos_combo = ttk.Combobox(opt, values=_t("shorts_sub_pos_values"), width=12, state="readonly")
+    subpos_combo.current(0)  # bottom
+    reg("combo", (subpos_combo, "shorts_sub_pos_values"), "shorts_sub_pos_values")
+    subpos_combo.grid(row=2, column=1, sticky="w", pady=3)
+
     subs_var = tk.BooleanVar(value=False)
     chk_subs = ttk.Checkbutton(opt, text=_t("shorts_subtitles"), variable=subs_var)
     reg("text", chk_subs, "shorts_subtitles")
-    chk_subs.grid(row=2, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 3))
+    chk_subs.grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 3))
 
     lang_var = tk.StringVar(value="ko")
-    _label(opt, "model", row=3, column=0, sticky="w", padx=(8, 4), pady=3)
+    _label(opt, "model", row=4, column=0, sticky="w", padx=(8, 4), pady=3)
     model_combo = ttk.Combobox(opt, values=_t("model_values"), width=16, state="readonly")
     model_combo.current(2)  # small
     reg("combo", (model_combo, "model_values"), "model_values")
-    model_combo.grid(row=3, column=1, sticky="w", pady=3)
-    _label(opt, "language", row=3, column=2, sticky="w", padx=(16, 4), pady=3)
-    ttk.Entry(opt, textvariable=lang_var, width=6).grid(row=3, column=3, sticky="w", pady=3)
+    model_combo.grid(row=4, column=1, sticky="w", pady=3)
+    _label(opt, "language", row=4, column=2, sticky="w", padx=(16, 4), pady=3)
+    ttk.Entry(opt, textvariable=lang_var, width=6).grid(row=4, column=3, sticky="w", pady=3)
 
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_shorts"))
@@ -872,6 +883,7 @@ def build_shorts_tab(nb):
             cmd += ["--name", name_var.get().strip()]
         if fontsize_var.get().strip():
             cmd += ["--font-size", fontsize_var.get().strip()]
+        cmd += ["--sub-pos", SHORTS_SUBPOS_CODES[max(subpos_combo.current(), 0)]]
         if subs_var.get():
             cmd += ["--subtitles",
                     "--model", MODEL_CODES[max(model_combo.current(), 0)],

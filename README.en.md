@@ -51,7 +51,7 @@ The GUI (`요약기_gui.py`) has four tabs. A **KO/EN language toggle button (�
 
 - Pick any range(s) from a video and export a **1080x1920 vertical short** (YouTube Shorts / Instagram Reels / TikTok spec).
 - Two vertical modes: **center crop** (zoom into the middle) or **blur background** (full frame + blurred bars).
-- Turn on **auto subtitles** to burn in Whisper captions in the **big bold shorts style**.
+- Turn on **auto subtitles** to burn in Whisper captions in the **big bold shorts style**. Both the caption **size** and **position (bottom / center / top)** are adjustable so they don't cover the footage.
 - Multiple ranges are hard-cut together. (3 minutes total max recommended.)
 - Output: `name_shorts.mp4` (vertical video), `name_shorts.srt` (when subtitles are on)
 

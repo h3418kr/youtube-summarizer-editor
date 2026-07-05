@@ -200,23 +200,25 @@ def concat_ts(ts_files, out_mp4: str, tmpdir: str) -> None:
     )
 
 
-def add_bgm(video_mp4: str, bgm: str, out_mp4: str, volume: float = 0.25) -> None:
-    """영상 전체 길이에 맞춰 배경음악을 반복/컷 하여 기존 오디오와 섞는다.
+def mix_bgm_into_ts(main_ts: str, bgm: str, out_ts: str, volume: float = 0.25) -> None:
+    """본편 TS 조각에만 배경음악을 섞어 새 TS 로 만든다(영상은 재인코딩 X).
 
-    -stream_loop -1 로 BGM 을 무한 반복시키고, amix 의 duration=first 로 영상
+    BGM 을 본편 클립에만 넣으므로 인트로/아웃트로/썸네일 구간에는 깔리지 않는다.
+    -stream_loop -1 로 BGM 을 무한 반복시키고, amix 의 duration=first 로 본편
     길이에 정확히 맞춘다(짧으면 반복 채움, 길면 잘라냄). normalize=0 으로 원본
     말소리 볼륨은 그대로 두고 BGM 만 낮추며, alimiter 로 합산 시 클리핑을 막는다.
+    이어붙이기(concat)와 호환되도록 오디오 규격을 본편과 동일하게 맞춰 TS 로 낸다.
     """
     bgm = os.path.abspath(bgm)
     fc = (f"[1:a]volume={volume}[bg];"
           f"[0:a][bg]amix=inputs=2:duration=first:normalize=0[mix];"
           f"[mix]alimiter=limit=0.95[a]")
     run_ffmpeg(
-        ["ffmpeg", "-y", "-i", video_mp4, "-stream_loop", "-1", "-i", bgm,
+        ["ffmpeg", "-y", "-i", main_ts, "-stream_loop", "-1", "-i", bgm,
          "-filter_complex", fc, "-map", "0:v", "-map", "[a]",
-         "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
-         "-movflags", "+faststart", out_mp4],
-        label="(배경음악)",
+         "-c:v", "copy", "-c:a", "aac", "-b:a", "128k", "-ar", "44100", "-ac", "2",
+         "-muxpreload", "0", "-muxdelay", "0", "-f", "mpegts", out_ts],
+        label="(본편 배경음악)",
     )
 
 
@@ -277,7 +279,17 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
                     burn_sub=bool(burn and srt), watermark=watermark,
                     wm_pos=wm_pos, wm_scale=wm_scale, wm_margin=wm_margin,
                     wm_colorkey=wm_colorkey)
-        ts_files.append(main_ts)
+
+        # 3-2) 배경음악: 본편에만 섞는다(인트로/아웃트로/썸네일엔 안 깔림).
+        if bgm and has_audio(main_ts):
+            print(f"[배경음악] 본편 구간에만 삽입 (볼륨 {bgm_volume})...", flush=True)
+            main_bgm_ts = os.path.join(tmp, "main_bgm.ts")
+            mix_bgm_into_ts(main_ts, bgm, main_bgm_ts, bgm_volume)
+            ts_files.append(main_bgm_ts)
+        else:
+            if bgm:
+                print(f"[배경음악] 본편에 오디오가 없어 건너뜁니다.", flush=True)
+            ts_files.append(main_ts)
 
         # 4) 아웃트로 영상 (있으면 맨 뒤)
         if outro_video:
@@ -292,14 +304,7 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
         concat_ts(ts_files, combined, tmp)
         stage = combined
 
-        # 6) 배경음악 (있으면 영상 길이에 맞춰 반복/컷 하여 믹스)
-        if bgm:
-            print(f"[배경음악] 영상 길이에 맞춰 삽입 (볼륨 {bgm_volume})...", flush=True)
-            bgm_out = os.path.join(tmp, "with_bgm.mp4")
-            add_bgm(stage, bgm, bgm_out, bgm_volume)
-            stage = bgm_out
-
-        # 7) 표지(커버) 또는 최종 저장
+        # 6) 표지(커버) 또는 최종 저장
         if cover and thumb:
             print(f"[표지] 썸네일 커버 삽입...", flush=True)
             add_cover(stage, thumb, out_path)

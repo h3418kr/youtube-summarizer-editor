@@ -61,7 +61,7 @@ The GUI (`요약기_gui.py`) has four tabs. A **KO/EN language toggle button (�
 - **Burns subtitles into** the picture (hardsub) → they show up on any player.
 - Uses the thumbnail as an **① intro clip** at the front and also embeds it as **② the mp4 cover art**.
 - Lets you attach a separate **intro / outro video** (a standalone mp4) before and after the main clip. Even with different resolution/aspect ratio, it's auto-converted to the main clip's spec and stitched in.
-- Add **background music (BGM)** and it's automatically **looped (if short) or cut (if long)** to match the full length of the finished video. The volume is lowered (default 0.25) so it mixes under the original speech instead of covering it.
+- Add **background music (BGM)** and it plays **only over the main video** (not the intro/outro clips or thumbnail intro). It's automatically **looped (if short) or cut (if long)** to the main video's length, at a lowered volume (default 0.25) so it mixes under the original speech instead of covering it.
 - Add a **channel mark (logo image)** in any corner (top-left / top-right / bottom-left / bottom-right). The mark is burned onto the **main video only** — it won't appear on the intro/outro clips.
 - Intro length, subtitle size, BGM volume, and each option can be toggled on/off.
 
@@ -255,7 +255,7 @@ python 요약기_gui.py        # or double-click 요약기_실행.bat
 - **Highlight detection**: analyzes the audio, scores segments with high loudness (energy), and picks the top ones to fit the target length. Nearby segments (within `--bridge-gap`) are stitched into one scene.
 - **Subtitle generation**: transcribes speech with OpenAI Whisper to make the SRT. For game-term accuracy, `initial_prompt` feeds domain words as hints.
 - **Lossless stitching**: encodes intro and main into MPEG-TS pieces of the same spec, then combines them with the `concat` demuxer — exact length, no re-encoding.
-- **Background music insertion**: loops the BGM endlessly with `-stream_loop` to match the full finished-video length, then mixes it with the original audio (`amix`) and trims to the video length.
+- **Background music insertion**: loops the BGM endlessly with `-stream_loop` to match the **main video's** length, then mixes it with the main audio (`amix`). The BGM is mixed only into the main TS piece, so it doesn't play over the intro/outro segments.
 - **Hidden console windows**: on Windows, `CREATE_NO_WINDOW` + `-nostdin` keep ffmpeg/yt-dlp subprocesses from popping up black windows.
 
 ---

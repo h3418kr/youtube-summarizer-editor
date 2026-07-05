@@ -140,12 +140,16 @@ WM_POSITIONS = {"tl": "좌상단", "tr": "우상단", "bl": "좌하단", "br": "
 def render_main(video: str, srt_name: str, w: int, h: int, fps: str,
                 out_ts: str, cwd: str, font: str, font_size: int,
                 burn_sub: bool, watermark: str = "", wm_pos: str = "tr",
-                wm_scale: float = 0.12, wm_margin: int = 24) -> None:
+                wm_scale: float = 0.12, wm_margin: int = 24,
+                wm_colorkey: str = "") -> None:
     """본편을 규격 통일 + (선택)자막 하드섭 + (선택)채널 마크 오버레이 하여 TS 로.
 
     마크는 본편에만 들어간다(인트로/아웃트로 TS 는 손대지 않으므로 자동으로
     본영상에만 남는다). subtitles 필터 경로는 Windows 이스케이프가 까다로워
     SRT 를 작업 폴더(cwd)에 복사한 뒤 상대 경로로 참조한다.
+
+    wm_colorkey 를 주면(예: black/white/0xRRGGBB) 마크 이미지에서 그 배경색을
+    투명 처리(colorkey)한 뒤 얹는다. 배경이 단색인 로고를 투명 없이 써도 된다.
     """
     # 비디오 체인: scale -> (자막) -> [base]
     chain = f"[0:v]scale={w}:{h},setsar=1"
@@ -165,7 +169,12 @@ def render_main(video: str, srt_name: str, w: int, h: int, fps: str,
         ox = f"{m}" if left else f"W-w-{m}"
         oy = f"{m}" if top else f"H-h-{m}"
         inputs += ["-i", os.path.abspath(watermark)]
-        fc = (f"{chain}[base];[1:v]scale={lw}:-1[wm];"
+        # 배경색 투명 처리: colorkey 는 알파를 만들므로 rgba 로 두고 처리한다.
+        logo = f"[1:v]format=rgba,scale={lw}:-1"
+        if wm_colorkey:
+            logo += f",colorkey={wm_colorkey}:0.30:0.10"
+        logo += "[wm]"
+        fc = (f"{chain}[base];{logo};"
               f"[base][wm]overlay={ox}:{oy},format=yuv420p[v]")
     else:
         fc = f"{chain},format=yuv420p[v]"
@@ -229,7 +238,8 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
              intro_video: str = "", outro_video: str = "",
              bgm: str = "", bgm_volume: float = 0.25,
              watermark: str = "", wm_pos: str = "tr",
-             wm_scale: float = 0.12, wm_margin: int = 24) -> None:
+             wm_scale: float = 0.12, wm_margin: int = 24,
+             wm_colorkey: str = "") -> None:
     video = os.path.abspath(video)
     out_path = os.path.abspath(out_path)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
@@ -265,7 +275,8 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
             shutil.copyfile(srt, os.path.join(tmp, srt_name))
         render_main(video, srt_name, w, h, fps, main_ts, tmp, font, font_size,
                     burn_sub=bool(burn and srt), watermark=watermark,
-                    wm_pos=wm_pos, wm_scale=wm_scale, wm_margin=wm_margin)
+                    wm_pos=wm_pos, wm_scale=wm_scale, wm_margin=wm_margin,
+                    wm_colorkey=wm_colorkey)
         ts_files.append(main_ts)
 
         # 4) 아웃트로 영상 (있으면 맨 뒤)
@@ -327,6 +338,9 @@ def main():
                     help="마크 가로폭 = 영상 가로폭 * 이 값 (기본 0.12)")
     ap.add_argument("--wm-margin", type=int, default=24,
                     help="마크 가장자리 여백(픽셀). 기본 24")
+    ap.add_argument("--wm-colorkey", default="",
+                    help="마크 이미지의 배경색을 투명 처리(예: black / white / 0xRRGGBB). "
+                         "비우면 이미지 그대로 사용. 단색 배경 로고에 유용.")
     ap.set_defaults(intro=True, cover=True, burn=True)
     args = ap.parse_args()
 
@@ -365,7 +379,8 @@ def main():
              intro_video=intro_video, outro_video=outro_video,
              bgm=bgm, bgm_volume=args.bgm_volume,
              watermark=watermark, wm_pos=args.wm_pos,
-             wm_scale=args.wm_scale, wm_margin=args.wm_margin)
+             wm_scale=args.wm_scale, wm_margin=args.wm_margin,
+             wm_colorkey=args.wm_colorkey)
 
 
 if __name__ == "__main__":

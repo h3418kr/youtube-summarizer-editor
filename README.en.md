@@ -218,6 +218,7 @@ Combine the summary video + (edited) subtitles + thumbnail image into an upload-
 | Background music (optional) | A music file laid under the whole video (`.mp3`/`.m4a`/`.wav`, empty if none) |
 | Channel mark image (optional) | Logo image (png/jpg) overlaid on the **main video only** — not on the intro/outro |
 | Mark position | Top-left / Top-right / Bottom-left / Bottom-right (default Top-right) |
+| Make background transparent | If the logo has a solid background, key out that color (white/black); not needed for a transparent PNG |
 | Output file | Where the final file is saved |
 | Intro length (s) | How many seconds the thumbnail shows at the front (default `2.5`s) |
 | Subtitle size | Font size of the burned-in subtitles (default `24`) |

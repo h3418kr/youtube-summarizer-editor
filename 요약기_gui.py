@@ -25,6 +25,7 @@ QUALITY_CODES = ["360", "480", "720", "1080"]
 TRANS_CODES = ["none", "black", "white"]
 SFX_CODES = ["none", "whoosh", "swoosh", "beep", "pop", "impact"]
 WMPOS_CODES = ["tl", "tr", "bl", "br"]  # 좌상 우상 좌하 우하
+WMKEY_CODES = ["", "white", "black"]  # 배경 투명 처리: 없음 / 흰색 / 검정
 SHORTS_MODE_CODES = ["center", "blur"]
 SHORTS_SUBPOS_CODES = ["bottom", "center", "top"]  # 하단 중앙 상단
 
@@ -72,6 +73,9 @@ STRINGS = {
         "dlg_watermark": "마크 이미지 선택 (png/jpg)",
         "wm_position": "마크 위치",
         "wm_pos_values": ["좌상단", "우상단", "좌하단", "우하단"],
+        "wm_colorkey": "배경 투명 처리",
+        "wm_colorkey_values": ["없음", "흰색 제거", "검정 제거"],
+        "wm_colorkey_hint": "(단색 배경 로고면 그 색을 투명 처리)",
         "label_position": "소제목 위치",
         "label_position_hint": "(‘시작-끝 | 소제목’으로 입력한 소제목이 뜨는 자리)",
         "analyze_only": "구간 후보만 분석 (영상은 만들지 않음 — 빠름)",
@@ -200,6 +204,9 @@ STRINGS = {
         "dlg_watermark": "Select mark image (png/jpg)",
         "wm_position": "Mark position",
         "wm_pos_values": ["Top-left", "Top-right", "Bottom-left", "Bottom-right"],
+        "wm_colorkey": "Make background transparent",
+        "wm_colorkey_values": ["None", "Remove white", "Remove black"],
+        "wm_colorkey_hint": "(for a logo on a solid-color background)",
         "label_position": "Subtitle position",
         "label_position_hint": "(where the 'start-end | subtitle' text appears)",
         "analyze_only": "Analyze candidates only (no video output — fast)",
@@ -1046,6 +1053,13 @@ def build_finalize_tab(nb):
     wmpos_combo.grid(row=4, column=1, sticky="w", pady=(0, 3))
     _label(opt, "watermark_hint", row=4, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 3))
 
+    _label(opt, "wm_colorkey", row=5, column=0, sticky="w", padx=(8, 4), pady=(0, 3))
+    wmkey_combo = ttk.Combobox(opt, values=_t("wm_colorkey_values"), width=10, state="readonly")
+    wmkey_combo.current(0)  # 없음
+    reg("combo", (wmkey_combo, "wm_colorkey_values"), "wm_colorkey_values")
+    wmkey_combo.grid(row=5, column=1, sticky="w", pady=(0, 3))
+    _label(opt, "wm_colorkey_hint", row=5, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 3))
+
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_finalize"))
     reg("var", btn_label_var, "btn_finalize")
@@ -1097,6 +1111,9 @@ def build_finalize_tab(nb):
         if watermark_var.get().strip():
             cmd += ["--watermark", watermark_var.get().strip(),
                     "--wm-pos", WMPOS_CODES[max(wmpos_combo.current(), 0)]]
+            wmkey = WMKEY_CODES[max(wmkey_combo.current(), 0)]
+            if wmkey:
+                cmd += ["--wm-colorkey", wmkey]
 
         log.config(state="normal")
         log.delete("1.0", tk.END)

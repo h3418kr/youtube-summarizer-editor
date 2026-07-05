@@ -36,6 +36,7 @@ The GUI (`요약기_gui.py`) has four tabs. A **KO/EN language toggle button (�
 - Auto-generates **subtitles (SRT)** with Whisper, plus a **YouTube chapters text** (`_chapters.txt`) you can paste straight into the video description.
 - Turn on **"Analyze candidates only"** to skip building the video and just extract candidate highlight ranges quickly — they are **auto-loaded into the Manual highlights tab** so you can review and adjust them before building.
 - Lets you add **screen transitions** (none / fade to black / white flash) and **transition SFX** (none / whoosh / swoosh / beep / pop / impact) between highlights.
+- Add a **channel mark (logo image)** in any corner (top-left / top-right / bottom-left / bottom-right). The mark is burned onto the **main video only** — it won't appear on the intro/outro added in the Finalize tab.
 - Set a **keep-original folder** and the downloaded source video is preserved instead of deleted → you can re-edit it later in the **Manual highlights tab**.
 - Output: `title_summary.mp4` (summary video), `title_summary.srt` (subtitles), `title_chapters.txt` (YouTube chapters)
 
@@ -43,7 +44,8 @@ The GUI (`요약기_gui.py`) has four tabs. A **KO/EN language toggle button (�
 
 - Build a summary video from a **local video file you already have** plus **highlight time ranges you type in yourself** — skipping the download and audio-analysis steps.
 - Enter one range per line as `start - end`. `SS` / `MM:SS` / `HH:MM:SS` are all supported, e.g. `1:23 - 2:05`, `83 - 125`, `00:01:23,000 --> 00:02:05,000` (SRT style).
-- Just like the Summarize tab, you can add **transitions / SFX**, and optionally auto-generate **subtitles (SRT)**.
+- Add `| subtitle` after any line (e.g. `1:23 - 2:05 | Downgrade`) to show a **subtitle under the mark** during that highlight.
+- Just like the Summarize tab, you can add **transitions / SFX / channel mark**, and optionally auto-generate **subtitles (SRT)**.
 - Output: `name_highlight.mp4`, `name_highlight.srt` (when subtitles are on), `name_chapters.txt` (YouTube chapters)
 
 ### 3️⃣ Shorts tab — pick a scene, get a 9:16 vertical video
@@ -118,6 +120,8 @@ Below is the actual program screen. Just follow the numbers.
 | Scene merge (s) | Segments closer than this are stitched smoothly | `8` s |
 | Transition | Between highlights: none / fade to black / white flash | `fade to black` |
 | Transition SFX | SFX at the transition: none / whoosh / swoosh / beep / pop / impact | `whoosh` |
+| Channel mark image | Logo image (png/jpg) to overlay on the main video. Empty = none | empty |
+| Mark position | Top-left / Top-right / Bottom-left / Bottom-right | `Top-right` |
 | Keep-original folder | Folder to preserve the downloaded source video (empty = delete after processing) | empty |
 | Analyze candidates only | Skip building the video; extract candidate ranges and **auto-fill the Manual highlights tab** (skips Whisper, so it's fast) | off |
 
@@ -141,17 +145,19 @@ Use this when you want to build a summary from a **video file you already have**
 | Video file | Select the local video (mp4, etc.) to edit | — |
 | Output folder | Where the result files are saved | `output` |
 | Output name | Result file name (empty = use source filename) | empty |
-| Highlight ranges | One `start - end` per line | — |
+| Highlight ranges | One `start - end` per line (optional `| subtitle` after it) | — |
 | Transition / SFX | Same as the Summarize tab | `fade to black` / `whoosh` |
+| Channel mark image / position | Logo to overlay on the main video + corner | empty / `Top-right` |
 | Generate subtitles | Auto-generate Whisper subtitles (SRT) from the result on/off | off |
 
-Range input supports `SS` / `MM:SS` / `HH:MM:SS`:
+Range input supports `SS` / `MM:SS` / `HH:MM:SS`, with an optional `| subtitle`:
 ```
-1:23 - 2:05
+1:23 - 2:05 | Downgrade
 83 - 125
-00:01:23,000 --> 00:02:05,000
+00:01:23,000 --> 00:02:05,000 | Boss fight
 ```
 > Separators `-` `~` `->` `-->` are all accepted, and lines starting with `#` are treated as notes and ignored.
+> Text after `|` is shown as a **subtitle under the channel mark** during that highlight (shown even without a mark). Omit `|` if you don't need a subtitle.
 
 **Button: click "Make highlights"** → cuts and stitches only the ranges you entered into `name_highlight.mp4` (+ `name_highlight.srt`, `name_chapters.txt`).
 

@@ -25,9 +25,11 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from summarizer import (
     TRANSITION_STYLES,
     SFX_SPECS,
+    WM_POSITIONS,
     GAME_PROMPT,
     build_chapters,
     cut_and_concat,
+    apply_overlays,
     extract_audio,
     transcribe,
     build_srt,
@@ -55,26 +57,42 @@ def parse_time(token: str) -> float:
 _SEP_RE = re.compile(r"\s*(?:-->|->|~|-|–|—|to)\s*", re.IGNORECASE)
 
 
-def parse_ranges(text: str) -> List[Tuple[float, float]]:
-    """여러 줄의 시간대 텍스트를 (start, end) 리스트로 파싱."""
-    ranges: List[Tuple[float, float]] = []
+def _split_label(line: str) -> Tuple[str, str]:
+    """'1:23 - 2:05 | 다운그레이드' -> ('1:23 - 2:05', '다운그레이드').
+    '|' 뒤가 없으면 소제목은 빈 문자열."""
+    if "|" in line:
+        time_part, label = line.split("|", 1)
+        return time_part.strip(), label.strip()
+    return line.strip(), ""
+
+
+def parse_labeled_ranges(text: str) -> List[Tuple[float, float, str]]:
+    """여러 줄의 시간대 텍스트를 (start, end, label) 리스트로 파싱.
+    각 줄은 'start - end' 또는 'start - end | 소제목' 형식."""
+    ranges: List[Tuple[float, float, str]] = []
     for raw in text.splitlines():
         line = raw.strip()
         if not line or line.startswith("#"):
             continue
+        time_part, label = _split_label(line)
         # 콤마로 start,end 를 준 경우도 허용
-        if _SEP_RE.search(line):
-            a, b = _SEP_RE.split(line, maxsplit=1)
-        elif "," in line and line.count(",") == 1:
-            a, b = line.split(",", 1)
+        if _SEP_RE.search(time_part):
+            a, b = _SEP_RE.split(time_part, maxsplit=1)
+        elif "," in time_part and time_part.count(",") == 1:
+            a, b = time_part.split(",", 1)
         else:
             raise ValueError(f"시작-끝 구분자를 찾을 수 없습니다: '{line}'")
         start = parse_time(a)
         end = parse_time(b)
         if end <= start:
             raise ValueError(f"끝 시간이 시작 시간보다 빨라요: '{line}'")
-        ranges.append((start, end))
+        ranges.append((start, end, label))
     return ranges
+
+
+def parse_ranges(text: str) -> List[Tuple[float, float]]:
+    """여러 줄의 시간대 텍스트를 (start, end) 리스트로 파싱(소제목은 무시)."""
+    return [(s, e) for s, e, _ in parse_labeled_ranges(text)]
 
 
 def main():
@@ -105,6 +123,18 @@ def main():
     parser.add_argument("--lang", default="ko", help="자막 언어 코드 (기본 ko)")
     parser.add_argument("--prompt", default=GAME_PROMPT,
                         help="Whisper initial_prompt (전문 용어 힌트)")
+    parser.add_argument("--watermark", default="",
+                        help="본영상에 새겨넣을 마크(로고/채널명) 이미지 경로")
+    parser.add_argument("--wm-pos", default="tr", choices=list(WM_POSITIONS.keys()),
+                        help="마크 위치: tl(좌상) tr(우상) bl(좌하) br(우하). 기본 tr")
+    parser.add_argument("--wm-scale", type=float, default=0.12,
+                        help="마크 가로폭 = 영상 가로폭 * 이 값 (기본 0.12)")
+    parser.add_argument("--wm-margin", type=int, default=24,
+                        help="마크 가장자리 여백(픽셀). 기본 24")
+    parser.add_argument("--label-size", type=int, default=40,
+                        help="하이라이트 소제목 글자 크기 (기본 40)")
+    parser.add_argument("--font", default="Malgun Gothic",
+                        help="소제목 글꼴 (기본 Malgun Gothic)")
     args = parser.parse_args()
 
     if args.no_transition:
@@ -121,33 +151,45 @@ def main():
             range_text = f.read()
 
     try:
-        segments = parse_ranges(range_text)
+        labeled = parse_labeled_ranges(range_text)
     except ValueError as e:
         print(f"ERROR: 시간대 파싱 실패 - {e}")
         sys.exit(1)
 
-    if not segments:
+    if not labeled:
         print("ERROR: 하이라이트 시간대를 하나 이상 입력하세요.")
         sys.exit(1)
 
-    # 영상 길이를 벗어나는 구간은 잘라 맞춘다.
+    # 영상 길이를 벗어나는 구간은 잘라 맞춘다 (소제목은 유지).
     try:
         dur = get_duration(args.video)
         clipped = []
-        for s, e in segments:
+        for s, e, label in labeled:
             s = max(0.0, s)
             e = min(dur, e)
             if e - s >= 0.2:
-                clipped.append((s, e))
+                clipped.append((s, e, label))
             else:
                 print(f"  (범위를 벗어나 건너뜀: {s:.1f}s ~ {e:.1f}s / 영상 {dur:.1f}s)")
-        segments = clipped
+        labeled = clipped
     except Exception as e:
         print(f"  (영상 길이 확인 실패, 입력값 그대로 사용: {e})")
 
-    if not segments:
+    if not labeled:
         print("ERROR: 유효한 하이라이트 구간이 없습니다.")
         sys.exit(1)
+
+    segments = [(s, e) for s, e, _ in labeled]
+
+    # 소제목을 출력 타임라인(이어붙인 뒤 기준)으로 변환. 화면전환은 길이를
+    # 바꾸지 않으므로 각 구간 길이를 누적하면 출력상의 표시 구간이 된다.
+    label_windows = []
+    _t = 0.0
+    for s, e, label in labeled:
+        d = e - s
+        if label.strip():
+            label_windows.append((_t, _t + d, label))
+        _t += d
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -165,21 +207,40 @@ def main():
           f"{len(segments)}개 구간 컷 & 이어붙이기 "
           f"(총 {total:.1f}s / {total/60:.1f}분, 화면전환: {v_name} / 효과음: {s_name})")
 
+    use_wm = bool(args.watermark) and os.path.isfile(args.watermark)
+    use_overlay = use_wm or bool(label_windows)
+
     with tempfile.TemporaryDirectory(prefix="manual_hl_") as tmpdir:
-        cut_and_concat(args.video, segments, out_video, tmpdir,
+        # 마크/소제목이 있으면 먼저 원본 컷을 임시로 만들고 오버레이를 입힌다.
+        base_video = os.path.join(tmpdir, "highlight_raw.mp4") if use_overlay else out_video
+        cut_and_concat(args.video, segments, base_video, tmpdir,
                        transition_style=args.transition_style,
                        sfx_kind=args.sfx_kind)
 
         if args.subtitles:
             print(f"[2/3] 완성 영상에서 오디오 추출...")
             wav_path = os.path.join(tmpdir, "audio.wav")
-            extract_audio(out_video, wav_path)
+            extract_audio(base_video, wav_path)
             print(f"[3/3] Whisper 자막 생성 ({args.model})...")
             whisper_result = transcribe(wav_path, args.model, args.lang, args.prompt)
-            out_dur = get_duration(out_video)
+            out_dur = get_duration(base_video)
             srt_content = build_srt(whisper_result, [(0.0, out_dur)])
             with open(out_srt, "w", encoding="utf-8") as f:
                 f.write(srt_content)
+
+        if use_overlay:
+            wm_name = WM_POSITIONS.get(args.wm_pos, args.wm_pos)
+            bits = []
+            if use_wm:
+                bits.append(f"마크 {wm_name}")
+            if label_windows:
+                bits.append(f"소제목 {len(label_windows)}개")
+            print(f"  {' / '.join(bits)} 삽입...")
+            apply_overlays(base_video, out_video, tmpdir,
+                           watermark=args.watermark, wm_pos=args.wm_pos,
+                           wm_scale=args.wm_scale, wm_margin=args.wm_margin,
+                           labels=label_windows, font=args.font,
+                           label_size=args.label_size)
 
     # 유튜브 챕터 텍스트: 설명란에 그대로 붙여넣으면 챕터가 생긴다.
     with open(out_chapters, "w", encoding="utf-8") as f:

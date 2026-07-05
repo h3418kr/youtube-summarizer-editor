@@ -24,6 +24,7 @@ MODEL_CODES = ["tiny", "base", "small", "medium", "large"]
 QUALITY_CODES = ["360", "480", "720", "1080"]
 TRANS_CODES = ["none", "black", "white"]
 SFX_CODES = ["none", "whoosh", "swoosh", "beep", "pop", "impact"]
+WMPOS_CODES = ["tl", "tr", "bl", "br"]  # 좌상 우상 좌하 우하
 SHORTS_MODE_CODES = ["center", "blur"]
 
 # 분석 전용 모드 결과를 수동 하이라이트 탭으로 넘길 때 쓰는 위젯 참조
@@ -65,6 +66,11 @@ STRINGS = {
         "save_video": "원본 영상 보관 폴더 (선택)",
         "save_video_hint": "(지정하면 다운로드한 원본을 삭제하지 않고 이 폴더에 보관합니다)",
         "dlg_save_video": "원본 영상 보관 폴더 선택",
+        "watermark": "채널 마크 이미지 (선택)",
+        "watermark_hint": "(본영상에만 표시 — 완성 탭의 인트로/아웃트로엔 안 나옵니다)",
+        "dlg_watermark": "마크 이미지 선택 (png/jpg)",
+        "wm_position": "마크 위치",
+        "wm_pos_values": ["좌상단", "우상단", "좌하단", "우하단"],
         "analyze_only": "구간 후보만 분석 (영상은 만들지 않음 — 빠름)",
         "analyze_hint": "(분석이 끝나면 후보 구간이 수동 하이라이트 탭에 자동으로 채워집니다)",
         "msg_analyze_done": ("하이라이트 후보 분석 완료!\n\n"
@@ -75,8 +81,10 @@ STRINGS = {
         "man_heading": "수동 하이라이트 — 받아둔 영상으로 직접 편집",
         "man_video": "영상 파일 (로컬)",
         "man_ranges": "하이라이트 시간대",
-        "man_ranges_hint": "한 줄에 하나씩:  시작 - 끝   (예: 1:23 - 2:05  또는  83 - 125)",
-        "man_ranges_example": "# 예시입니다. 이 줄을 지우고 시간대를 입력하세요.\n1:23 - 2:05\n5:40 - 6:10\n",
+        "man_ranges_hint": "한 줄에 하나씩:  시작 - 끝  |  소제목(선택)   (예: 1:23 - 2:05 | 다운그레이드)",
+        "man_ranges_example": ("# 예시입니다. 이 줄을 지우고 시간대를 입력하세요.\n"
+                               "# '|' 뒤에 소제목을 적으면 마크 아래에 표시됩니다(선택).\n"
+                               "1:23 - 2:05 | 다운그레이드\n5:40 - 6:10\n"),
         "man_name": "출력 이름 (선택)",
         "man_subtitles": "자막(SRT) 자동 생성 (Whisper, 느림)",
         "btn_manual": "하이라이트 만들기",
@@ -182,6 +190,11 @@ STRINGS = {
         "save_video": "Keep original video in folder (optional)",
         "save_video_hint": "(if set, the downloaded original is kept here instead of deleted)",
         "dlg_save_video": "Select folder to keep original video",
+        "watermark": "Channel mark image (optional)",
+        "watermark_hint": "(shown on main video only — not on the Finalize intro/outro)",
+        "dlg_watermark": "Select mark image (png/jpg)",
+        "wm_position": "Mark position",
+        "wm_pos_values": ["Top-left", "Top-right", "Bottom-left", "Bottom-right"],
         "analyze_only": "Analyze candidates only (no video output — fast)",
         "analyze_hint": "(when done, the candidate ranges are loaded into the Manual highlights tab)",
         "msg_analyze_done": ("Highlight analysis finished!\n\n"
@@ -192,8 +205,10 @@ STRINGS = {
         "man_heading": "Manual highlights — edit a video you already have",
         "man_video": "Video file (local)",
         "man_ranges": "Highlight time ranges",
-        "man_ranges_hint": "One per line:  start - end   (e.g. 1:23 - 2:05  or  83 - 125)",
-        "man_ranges_example": "# Example. Delete this line and enter your own ranges.\n1:23 - 2:05\n5:40 - 6:10\n",
+        "man_ranges_hint": "One per line:  start - end  |  subtitle (optional)   (e.g. 1:23 - 2:05 | Downgrade)",
+        "man_ranges_example": ("# Example. Delete this line and enter your own ranges.\n"
+                               "# Text after '|' shows as a subtitle under the mark (optional).\n"
+                               "1:23 - 2:05 | Downgrade\n5:40 - 6:10\n"),
         "man_name": "Output name (optional)",
         "man_subtitles": "Auto-generate subtitles (SRT) with Whisper (slow)",
         "btn_manual": "Make highlights",
@@ -492,12 +507,33 @@ def build_summarizer_tab(nb):
     browse_save.grid(row=6, column=3, sticky="w", padx=(8, 4), pady=(6, 3))
     _label(opt, "save_video_hint", row=7, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
 
+    # 채널 마크(워터마크) 이미지 (선택) — 본영상에만 새겨진다
+    watermark_var = tk.StringVar(value="")
+    _label(opt, "watermark", row=8, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
+    ttk.Entry(opt, textvariable=watermark_var, width=28).grid(
+        row=8, column=1, columnspan=2, sticky="ew", pady=(6, 3))
+    browse_wm = ttk.Button(
+        opt, text=_t("browse"),
+        command=lambda: watermark_var.set(
+            filedialog.askopenfilename(
+                title=_t("dlg_watermark"),
+                filetypes=[(_t("ft_image"), "*.png *.jpg *.jpeg *.webp *.bmp"),
+                           (_t("ft_all"), "*.*")]) or watermark_var.get()))
+    reg("text", browse_wm, "browse")
+    browse_wm.grid(row=8, column=3, sticky="w", padx=(8, 4), pady=(6, 3))
+    _label(opt, "wm_position", row=9, column=0, sticky="w", padx=(8, 4), pady=(0, 3))
+    wmpos_combo = ttk.Combobox(opt, values=_t("wm_pos_values"), width=10, state="readonly")
+    wmpos_combo.current(1)  # tr = 우상단
+    reg("combo", (wmpos_combo, "wm_pos_values"), "wm_pos_values")
+    wmpos_combo.grid(row=9, column=1, sticky="w", pady=(0, 3))
+    _label(opt, "watermark_hint", row=9, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 3))
+
     # 분석 전용 모드: 후보 구간만 뽑아 수동 하이라이트 탭으로 넘긴다
     analyze_var = tk.BooleanVar(value=False)
     chk_analyze = ttk.Checkbutton(opt, text=_t("analyze_only"), variable=analyze_var)
     reg("text", chk_analyze, "analyze_only")
-    chk_analyze.grid(row=8, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
-    _label(opt, "analyze_hint", row=9, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
+    chk_analyze.grid(row=10, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
+    _label(opt, "analyze_hint", row=11, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
 
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_summarize"))
@@ -531,6 +567,9 @@ def build_summarizer_tab(nb):
         ]
         if save_video_var.get().strip():
             cmd += ["--save-video", save_video_var.get().strip()]
+        if watermark_var.get().strip():
+            cmd += ["--watermark", watermark_var.get().strip(),
+                    "--wm-pos", WMPOS_CODES[max(wmpos_combo.current(), 0)]]
         analyze_mode = analyze_var.get()
         if analyze_mode:
             cmd.append("--analyze-only")
@@ -654,6 +693,27 @@ def build_manual_tab(nb):
     _label(opt, "language", row=2, column=2, sticky="w", padx=(16, 4), pady=3)
     ttk.Entry(opt, textvariable=lang_var, width=6).grid(row=2, column=3, sticky="w", pady=3)
 
+    # 채널 마크(워터마크) 이미지 (선택)
+    watermark_var = tk.StringVar(value="")
+    _label(opt, "watermark", row=3, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
+    ttk.Entry(opt, textvariable=watermark_var, width=28).grid(
+        row=3, column=1, columnspan=2, sticky="ew", pady=(6, 3))
+    browse_wm = ttk.Button(
+        opt, text=_t("browse"),
+        command=lambda: watermark_var.set(
+            filedialog.askopenfilename(
+                title=_t("dlg_watermark"),
+                filetypes=[(_t("ft_image"), "*.png *.jpg *.jpeg *.webp *.bmp"),
+                           (_t("ft_all"), "*.*")]) or watermark_var.get()))
+    reg("text", browse_wm, "browse")
+    browse_wm.grid(row=3, column=3, sticky="w", padx=(8, 4), pady=(6, 3))
+    _label(opt, "wm_position", row=4, column=0, sticky="w", padx=(8, 4), pady=(0, 3))
+    wmpos_combo = ttk.Combobox(opt, values=_t("wm_pos_values"), width=10, state="readonly")
+    wmpos_combo.current(1)  # tr = 우상단
+    reg("combo", (wmpos_combo, "wm_pos_values"), "wm_pos_values")
+    wmpos_combo.grid(row=4, column=1, sticky="w", pady=(0, 3))
+    _label(opt, "watermark_hint", row=4, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 3))
+
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_manual"))
     reg("var", btn_label_var, "btn_manual")
@@ -688,6 +748,9 @@ def build_manual_tab(nb):
         ]
         if name_var.get().strip():
             cmd += ["--name", name_var.get().strip()]
+        if watermark_var.get().strip():
+            cmd += ["--watermark", watermark_var.get().strip(),
+                    "--wm-pos", WMPOS_CODES[max(wmpos_combo.current(), 0)]]
         if subs_var.get():
             cmd += ["--subtitles",
                     "--model", MODEL_CODES[max(model_combo.current(), 0)],
@@ -1057,8 +1120,8 @@ def main():
     root = tk.Tk()
     root.title(_t("win_title"))
     reg("title", root, "win_title")
-    root.geometry("720x660")
-    root.minsize(640, 580)
+    root.geometry("720x740")
+    root.minsize(640, 620)
 
     style = ttk.Style(root)
     try:

@@ -46,10 +46,11 @@ def run(cmd, **kwargs):
     return result.stdout.strip()
 
 
-def run_ffmpeg(cmd, label: str = "") -> None:
+def run_ffmpeg(cmd, label: str = "", cwd: str = None) -> None:
     """ffmpeg 실행: 콘솔창 숨김 + stdin 차단 + 진행상황(time=) 스트리밍.
 
     긴 인코딩 중에도 '멈춘 것처럼' 보이지 않도록 마지막 진행 줄을 출력한다.
+    cwd 를 주면 그 폴더에서 실행한다(subtitles= 등 상대경로 필터에 사용).
     """
     # ffmpeg 는 -nostdin 으로 표준입력을 아예 건드리지 않게 한다.
     if cmd and "ffmpeg" in os.path.basename(str(cmd[0])).lower():
@@ -58,6 +59,7 @@ def run_ffmpeg(cmd, label: str = "") -> None:
     proc = subprocess.Popen(
         cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
         text=True, encoding="utf-8", errors="replace",
+        cwd=cwd,
         **_PROC_KW,
     )
     last = ""
@@ -104,6 +106,150 @@ def get_duration(path: str) -> float:
                "-show_format", path])
     data = json.loads(out)
     return float(data["format"]["duration"])
+
+
+def get_media_size(path: str) -> Tuple[int, int]:
+    """영상/이미지의 (가로, 세로) 픽셀 크기를 반환."""
+    out = run(["ffprobe", "-v", "quiet", "-print_format", "json",
+               "-select_streams", "v:0", "-show_streams", path])
+    st = json.loads(out)["streams"][0]
+    return int(st["width"]), int(st["height"])
+
+
+# 워터마크(마크) 위치: key -> (사람이 읽는 이름, 코너)
+#   tl=좌상단 tr=우상단 bl=좌하단 br=우하단
+WM_POSITIONS = {
+    "tl": "좌상단", "tr": "우상단", "bl": "좌하단", "br": "우하단",
+}
+
+
+def _ass_ts(sec: float) -> str:
+    """초 -> ASS 시간표기 H:MM:SS.cs (센티초)."""
+    if sec < 0:
+        sec = 0.0
+    h = int(sec // 3600)
+    m = int((sec % 3600) // 60)
+    s = int(sec % 60)
+    cs = int(round((sec - int(sec)) * 100))
+    if cs == 100:
+        cs = 0
+        s += 1
+    return f"{h:d}:{m:02d}:{s:02d}.{cs:02d}"
+
+
+def _ass_escape(text: str) -> str:
+    """ASS Dialogue 텍스트용 이스케이프(오버라이드 괄호/줄바꿈 처리)."""
+    return (text.replace("\\", "")
+                .replace("{", "(").replace("}", ")")
+                .replace("\r", "").replace("\n", r"\N"))
+
+
+def _build_label_ass(W: int, H: int, labels, anchor: int, x: int, y: int,
+                     font: str, size: int) -> str:
+    """하이라이트 소제목을 픽셀 좌표(\\pos)로 정확히 배치한 ASS 문서 생성.
+
+    anchor : \\an 값(numpad 1~9). x, y : 텍스트 앵커의 픽셀 좌표.
+    """
+    head = (
+        "[Script Info]\n"
+        "ScriptType: v4.00+\n"
+        f"PlayResX: {W}\nPlayResY: {H}\n"
+        "ScaledBorderAndShadow: yes\nWrapStyle: 2\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, "
+        "Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
+        "MarginL, MarginR, MarginV, Encoding\n"
+        f"Style: L,{font},{size},&H00FFFFFF,&HC0000000,&H00000000,"
+        f"-1,0,0,0,100,100,0,0,1,3,1,{anchor},10,10,10,1\n\n"
+        "[Events]\n"
+        "Format: Layer, Start, End, Style, Name, MarginL, MarginR, "
+        "MarginV, Effect, Text\n"
+    )
+    lines = []
+    for s, e, text in labels:
+        body = f"{{\\an{anchor}\\pos({x},{y})}}{_ass_escape(text.strip())}"
+        lines.append(f"Dialogue: 0,{_ass_ts(s)},{_ass_ts(e)},L,,0,0,0,,{body}")
+    return head + "\n".join(lines) + "\n"
+
+
+def apply_overlays(in_video: str, out_video: str, tmpdir: str, *,
+                   watermark: str = "", wm_pos: str = "tr",
+                   wm_scale: float = 0.12, wm_margin: int = 24,
+                   labels=None, font: str = "Malgun Gothic",
+                   label_size: int = 40) -> bool:
+    """본영상에 워터마크(마크) 이미지와 하이라이트별 소제목을 새겨넣는다.
+
+    watermark : 마크 이미지 경로(빈 문자열이면 생략)
+    wm_pos    : tl/tr/bl/br (마크 위치)
+    wm_scale  : 마크 가로폭 = 영상 가로폭 * wm_scale
+    labels    : [(start_out, end_out, text), ...] 출력 타임라인(초) 기준 소제목.
+                비면 소제목 생략. 소제목은 마크 바로 아래(마크 없으면 코너)에 뜬다.
+
+    새겨넣을 게 있으면 out_video 로 인코딩하고 True, 없으면 아무 것도 안 하고
+    False 를 반환한다(호출부에서 in_video 를 그대로 쓰면 됨).
+    """
+    labels = [(s, e, t) for (s, e, t) in (labels or []) if t and t.strip()]
+    has_wm = bool(watermark) and os.path.isfile(watermark)
+    if not has_wm and not labels:
+        return False
+
+    W, H = get_media_size(in_video)
+    margin = int(wm_margin)
+    top = wm_pos in ("tl", "tr")
+    left = wm_pos in ("tl", "bl")
+
+    inputs = ["-i", os.path.abspath(in_video)]
+    fc_parts = []
+    vlabel = "[0:v]"
+
+    logo_h_scaled = 0
+    if has_wm:
+        inputs += ["-i", os.path.abspath(watermark)]
+        lw = max(16, int(W * float(wm_scale)))
+        try:
+            iw, ih = get_media_size(watermark)
+            logo_h_scaled = int(lw * ih / iw) if iw else int(lw * 0.5)
+        except Exception:
+            logo_h_scaled = int(lw * 0.5)
+        ox = f"{margin}" if left else f"W-w-{margin}"
+        oy = f"{margin}" if top else f"H-h-{margin}"
+        fc_parts.append(f"[1:v]scale={lw}:-1[wm]")
+        fc_parts.append(f"{vlabel}[wm]overlay={ox}:{oy}[v1]")
+        vlabel = "[v1]"
+
+    if labels:
+        # 소제목을 마크와 같은 코너에, 마크 바로 아래(상단)/위(하단)로 픽셀 좌표
+        # 배치. \an(numpad): 7=상좌 8=상중 9=상우 / 1=하좌 2=하중 3=하우.
+        gap = 12
+        if top:
+            anchor = 7 if left else 9
+            y = margin + logo_h_scaled + gap
+        else:
+            anchor = 1 if left else 3
+            y = H - margin - logo_h_scaled - gap
+        x = margin if left else (W - margin)
+        ass = _build_label_ass(W, H, labels, anchor, x, y, font, label_size)
+        ass_name = "labels.ass"
+        with open(os.path.join(tmpdir, ass_name), "w", encoding="utf-8") as f:
+            f.write(ass)
+        fc_parts.append(f"{vlabel}subtitles={ass_name}[v]")
+        vmap = "[v]"
+    else:
+        # 워터마크만: 마지막 비디오 라벨을 그대로 출력으로.
+        vmap = vlabel
+
+    filter_complex = ";".join(fc_parts)
+    cmd = ["ffmpeg", "-y"] + inputs + [
+        "-filter_complex", filter_complex,
+        "-map", vmap, "-map", "0:a?",
+        "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+        "-pix_fmt", "yuv420p", "-c:a", "copy",
+        "-movflags", "+faststart", os.path.abspath(out_video),
+    ]
+    # subtitles= 상대경로 참조를 위해 tmpdir 에서 실행.
+    run_ffmpeg(cmd, label="(마크/소제목)", cwd=tmpdir)
+    return True
 
 
 def _bundled_model_root():
@@ -562,6 +708,15 @@ def main():
                         help="영상을 만들지 않고 하이라이트 후보 구간만 분석해 "
                              "구간 목록 파일(_segments.txt)로 저장합니다. "
                              "자막 전사(Whisper)를 건너뛰어 훨씬 빠릅니다.")
+    parser.add_argument("--watermark", default="",
+                        help="본영상에 새겨넣을 마크(로고/채널명) 이미지 경로. "
+                             "완성 탭에서 인트로/아웃트로를 붙여도 본영상에만 남습니다.")
+    parser.add_argument("--wm-pos", default="tr", choices=list(WM_POSITIONS.keys()),
+                        help="마크 위치: tl(좌상) tr(우상) bl(좌하) br(우하). 기본 tr")
+    parser.add_argument("--wm-scale", type=float, default=0.12,
+                        help="마크 가로폭 = 영상 가로폭 * 이 값 (기본 0.12)")
+    parser.add_argument("--wm-margin", type=int, default=24,
+                        help="마크 가장자리 여백(픽셀). 기본 24")
     args = parser.parse_args()
 
     if args.no_transition:
@@ -669,8 +824,15 @@ def main():
         v_name = TRANSITION_STYLES.get(args.transition_style, args.transition_style)
         s_name = SFX_SPECS.get(args.sfx_kind, (None, None, 0, args.sfx_kind))[3]
         print(f"[6/6] Cutting and concatenating segments... (화면전환: {v_name} / 효과음: {s_name})")
-        cut_and_concat(video_path, segments, out_video, tmpdir,
+        use_wm = bool(args.watermark) and os.path.isfile(args.watermark)
+        cut_target = os.path.join(tmpdir, "summary_raw.mp4") if use_wm else out_video
+        cut_and_concat(video_path, segments, cut_target, tmpdir,
                        transition_style=args.transition_style, sfx_kind=args.sfx_kind)
+        if use_wm:
+            print(f"  마크 삽입 ({WM_POSITIONS.get(args.wm_pos, args.wm_pos)})...")
+            apply_overlays(cut_target, out_video, tmpdir,
+                           watermark=args.watermark, wm_pos=args.wm_pos,
+                           wm_scale=args.wm_scale, wm_margin=args.wm_margin)
 
         print(f"[7/7] Building subtitles...")
         srt_content = build_srt(whisper_result, segments)

@@ -42,8 +42,12 @@ _PROC_KW = dict(stdin=subprocess.DEVNULL, creationflags=_CREATE_NO_WINDOW)
 def run(cmd, **kwargs):
     kw = dict(_PROC_KW)
     kw.update(kwargs)
-    result = subprocess.run(cmd, check=True, capture_output=True, text=True, **kw)
-    return result.stdout.strip()
+    # ffprobe/yt-dlp 는 UTF-8 로 출력한다. encoding 을 지정하지 않으면 한국어
+    # Windows 기본값(cp949)으로 디코딩하다가, 경로/제목에 한글이 있으면 디코드가
+    # 깨져 stdout 이 None 이 된다(로컬 한글 파일명 요약 시 발생).
+    result = subprocess.run(cmd, check=True, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace", **kw)
+    return (result.stdout or "").strip()
 
 
 def run_ffmpeg(cmd, label: str = "", cwd: str = None) -> None:

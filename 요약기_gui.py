@@ -71,6 +71,8 @@ STRINGS = {
         "dlg_watermark": "마크 이미지 선택 (png/jpg)",
         "wm_position": "마크 위치",
         "wm_pos_values": ["좌상단", "우상단", "좌하단", "우하단"],
+        "label_position": "소제목 위치",
+        "label_position_hint": "(‘시작-끝 | 소제목’으로 입력한 소제목이 뜨는 자리)",
         "analyze_only": "구간 후보만 분석 (영상은 만들지 않음 — 빠름)",
         "analyze_hint": "(분석이 끝나면 후보 구간이 수동 하이라이트 탭에 자동으로 채워집니다)",
         "msg_analyze_done": ("하이라이트 후보 분석 완료!\n\n"
@@ -195,6 +197,8 @@ STRINGS = {
         "dlg_watermark": "Select mark image (png/jpg)",
         "wm_position": "Mark position",
         "wm_pos_values": ["Top-left", "Top-right", "Bottom-left", "Bottom-right"],
+        "label_position": "Subtitle position",
+        "label_position_hint": "(where the 'start-end | subtitle' text appears)",
         "analyze_only": "Analyze candidates only (no video output — fast)",
         "analyze_hint": "(when done, the candidate ranges are loaded into the Manual highlights tab)",
         "msg_analyze_done": ("Highlight analysis finished!\n\n"
@@ -507,33 +511,12 @@ def build_summarizer_tab(nb):
     browse_save.grid(row=6, column=3, sticky="w", padx=(8, 4), pady=(6, 3))
     _label(opt, "save_video_hint", row=7, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
 
-    # 채널 마크(워터마크) 이미지 (선택) — 본영상에만 새겨진다
-    watermark_var = tk.StringVar(value="")
-    _label(opt, "watermark", row=8, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
-    ttk.Entry(opt, textvariable=watermark_var, width=28).grid(
-        row=8, column=1, columnspan=2, sticky="ew", pady=(6, 3))
-    browse_wm = ttk.Button(
-        opt, text=_t("browse"),
-        command=lambda: watermark_var.set(
-            filedialog.askopenfilename(
-                title=_t("dlg_watermark"),
-                filetypes=[(_t("ft_image"), "*.png *.jpg *.jpeg *.webp *.bmp"),
-                           (_t("ft_all"), "*.*")]) or watermark_var.get()))
-    reg("text", browse_wm, "browse")
-    browse_wm.grid(row=8, column=3, sticky="w", padx=(8, 4), pady=(6, 3))
-    _label(opt, "wm_position", row=9, column=0, sticky="w", padx=(8, 4), pady=(0, 3))
-    wmpos_combo = ttk.Combobox(opt, values=_t("wm_pos_values"), width=10, state="readonly")
-    wmpos_combo.current(1)  # tr = 우상단
-    reg("combo", (wmpos_combo, "wm_pos_values"), "wm_pos_values")
-    wmpos_combo.grid(row=9, column=1, sticky="w", pady=(0, 3))
-    _label(opt, "watermark_hint", row=9, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 3))
-
     # 분석 전용 모드: 후보 구간만 뽑아 수동 하이라이트 탭으로 넘긴다
     analyze_var = tk.BooleanVar(value=False)
     chk_analyze = ttk.Checkbutton(opt, text=_t("analyze_only"), variable=analyze_var)
     reg("text", chk_analyze, "analyze_only")
-    chk_analyze.grid(row=10, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
-    _label(opt, "analyze_hint", row=11, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
+    chk_analyze.grid(row=8, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
+    _label(opt, "analyze_hint", row=9, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
 
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_summarize"))
@@ -567,9 +550,6 @@ def build_summarizer_tab(nb):
         ]
         if save_video_var.get().strip():
             cmd += ["--save-video", save_video_var.get().strip()]
-        if watermark_var.get().strip():
-            cmd += ["--watermark", watermark_var.get().strip(),
-                    "--wm-pos", WMPOS_CODES[max(wmpos_combo.current(), 0)]]
         analyze_mode = analyze_var.get()
         if analyze_mode:
             cmd.append("--analyze-only")
@@ -693,26 +673,13 @@ def build_manual_tab(nb):
     _label(opt, "language", row=2, column=2, sticky="w", padx=(16, 4), pady=3)
     ttk.Entry(opt, textvariable=lang_var, width=6).grid(row=2, column=3, sticky="w", pady=3)
 
-    # 채널 마크(워터마크) 이미지 (선택)
-    watermark_var = tk.StringVar(value="")
-    _label(opt, "watermark", row=3, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
-    ttk.Entry(opt, textvariable=watermark_var, width=28).grid(
-        row=3, column=1, columnspan=2, sticky="ew", pady=(6, 3))
-    browse_wm = ttk.Button(
-        opt, text=_t("browse"),
-        command=lambda: watermark_var.set(
-            filedialog.askopenfilename(
-                title=_t("dlg_watermark"),
-                filetypes=[(_t("ft_image"), "*.png *.jpg *.jpeg *.webp *.bmp"),
-                           (_t("ft_all"), "*.*")]) or watermark_var.get()))
-    reg("text", browse_wm, "browse")
-    browse_wm.grid(row=3, column=3, sticky="w", padx=(8, 4), pady=(6, 3))
-    _label(opt, "wm_position", row=4, column=0, sticky="w", padx=(8, 4), pady=(0, 3))
-    wmpos_combo = ttk.Combobox(opt, values=_t("wm_pos_values"), width=10, state="readonly")
-    wmpos_combo.current(1)  # tr = 우상단
-    reg("combo", (wmpos_combo, "wm_pos_values"), "wm_pos_values")
-    wmpos_combo.grid(row=4, column=1, sticky="w", pady=(0, 3))
-    _label(opt, "watermark_hint", row=4, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 3))
+    # 하이라이트 소제목 위치 ( '시작-끝 | 소제목' 으로 입력한 소제목이 뜨는 자리 )
+    _label(opt, "label_position", row=3, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
+    labelpos_combo = ttk.Combobox(opt, values=_t("wm_pos_values"), width=10, state="readonly")
+    labelpos_combo.current(1)  # tr = 우상단
+    reg("combo", (labelpos_combo, "wm_pos_values"), "wm_pos_values")
+    labelpos_combo.grid(row=3, column=1, sticky="w", pady=(6, 3))
+    _label(opt, "label_position_hint", row=3, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(6, 3))
 
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_manual"))
@@ -748,9 +715,7 @@ def build_manual_tab(nb):
         ]
         if name_var.get().strip():
             cmd += ["--name", name_var.get().strip()]
-        if watermark_var.get().strip():
-            cmd += ["--watermark", watermark_var.get().strip(),
-                    "--wm-pos", WMPOS_CODES[max(wmpos_combo.current(), 0)]]
+        cmd += ["--label-pos", WMPOS_CODES[max(labelpos_combo.current(), 0)]]
         if subs_var.get():
             cmd += ["--subtitles",
                     "--model", MODEL_CODES[max(model_combo.current(), 0)],
@@ -1044,6 +1009,31 @@ def build_finalize_tab(nb):
     _label(opt, "bgm_volume", row=2, column=2, sticky="w", padx=(16, 4), pady=3)
     ttk.Entry(opt, textvariable=bgm_volume_var, width=6).grid(row=2, column=3, sticky="w", pady=3)
 
+    # 채널 마크(워터마크) 이미지 (선택) — 본영상에만 새겨진다
+    watermark_var = tk.StringVar(value="")
+    _label(opt, "watermark", row=3, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
+    ttk.Entry(opt, textvariable=watermark_var, width=28).grid(
+        row=3, column=1, columnspan=2, sticky="ew", pady=(6, 3))
+    wm_btns = ttk.Frame(opt)
+    wm_btns.grid(row=3, column=3, sticky="w", padx=(8, 4), pady=(6, 3))
+    browse_wm = ttk.Button(
+        wm_btns, text=_t("browse"),
+        command=lambda: watermark_var.set(
+            filedialog.askopenfilename(
+                title=_t("dlg_watermark"),
+                filetypes=[(_t("ft_image"), "*.png *.jpg *.jpeg *.webp *.bmp"),
+                           (_t("ft_all"), "*.*")]) or watermark_var.get()))
+    reg("text", browse_wm, "browse")
+    browse_wm.pack(side="left")
+    ttk.Button(wm_btns, text="✕", width=3,
+               command=lambda: watermark_var.set("")).pack(side="left", padx=(4, 0))
+    _label(opt, "wm_position", row=4, column=0, sticky="w", padx=(8, 4), pady=(0, 3))
+    wmpos_combo = ttk.Combobox(opt, values=_t("wm_pos_values"), width=10, state="readonly")
+    wmpos_combo.current(1)  # tr = 우상단
+    reg("combo", (wmpos_combo, "wm_pos_values"), "wm_pos_values")
+    wmpos_combo.grid(row=4, column=1, sticky="w", pady=(0, 3))
+    _label(opt, "watermark_hint", row=4, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 3))
+
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_finalize"))
     reg("var", btn_label_var, "btn_finalize")
@@ -1092,6 +1082,9 @@ def build_finalize_tab(nb):
         if bgm_var.get().strip():
             cmd += ["--bgm", bgm_var.get().strip(),
                     "--bgm-volume", bgm_volume_var.get().strip() or "0.25"]
+        if watermark_var.get().strip():
+            cmd += ["--watermark", watermark_var.get().strip(),
+                    "--wm-pos", WMPOS_CODES[max(wmpos_combo.current(), 0)]]
 
         log.config(state="normal")
         log.delete("1.0", tk.END)

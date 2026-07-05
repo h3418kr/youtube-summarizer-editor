@@ -123,14 +123,8 @@ def main():
     parser.add_argument("--lang", default="ko", help="자막 언어 코드 (기본 ko)")
     parser.add_argument("--prompt", default=GAME_PROMPT,
                         help="Whisper initial_prompt (전문 용어 힌트)")
-    parser.add_argument("--watermark", default="",
-                        help="본영상에 새겨넣을 마크(로고/채널명) 이미지 경로")
-    parser.add_argument("--wm-pos", default="tr", choices=list(WM_POSITIONS.keys()),
-                        help="마크 위치: tl(좌상) tr(우상) bl(좌하) br(우하). 기본 tr")
-    parser.add_argument("--wm-scale", type=float, default=0.12,
-                        help="마크 가로폭 = 영상 가로폭 * 이 값 (기본 0.12)")
-    parser.add_argument("--wm-margin", type=int, default=24,
-                        help="마크 가장자리 여백(픽셀). 기본 24")
+    parser.add_argument("--label-pos", default="tr", choices=list(WM_POSITIONS.keys()),
+                        help="하이라이트 소제목 위치: tl(좌상) tr(우상) bl(좌하) br(우하). 기본 tr")
     parser.add_argument("--label-size", type=int, default=40,
                         help="하이라이트 소제목 글자 크기 (기본 40)")
     parser.add_argument("--font", default="Malgun Gothic",
@@ -207,11 +201,10 @@ def main():
           f"{len(segments)}개 구간 컷 & 이어붙이기 "
           f"(총 {total:.1f}s / {total/60:.1f}분, 화면전환: {v_name} / 효과음: {s_name})")
 
-    use_wm = bool(args.watermark) and os.path.isfile(args.watermark)
-    use_overlay = use_wm or bool(label_windows)
+    use_overlay = bool(label_windows)
 
     with tempfile.TemporaryDirectory(prefix="manual_hl_") as tmpdir:
-        # 마크/소제목이 있으면 먼저 원본 컷을 임시로 만들고 오버레이를 입힌다.
+        # 소제목이 있으면 먼저 원본 컷을 임시로 만들고 오버레이를 입힌다.
         base_video = os.path.join(tmpdir, "highlight_raw.mp4") if use_overlay else out_video
         cut_and_concat(args.video, segments, base_video, tmpdir,
                        transition_style=args.transition_style,
@@ -229,16 +222,10 @@ def main():
                 f.write(srt_content)
 
         if use_overlay:
-            wm_name = WM_POSITIONS.get(args.wm_pos, args.wm_pos)
-            bits = []
-            if use_wm:
-                bits.append(f"마크 {wm_name}")
-            if label_windows:
-                bits.append(f"소제목 {len(label_windows)}개")
-            print(f"  {' / '.join(bits)} 삽입...")
+            print(f"  소제목 {len(label_windows)}개 삽입 "
+                  f"({WM_POSITIONS.get(args.label_pos, args.label_pos)})...")
             apply_overlays(base_video, out_video, tmpdir,
-                           watermark=args.watermark, wm_pos=args.wm_pos,
-                           wm_scale=args.wm_scale, wm_margin=args.wm_margin,
+                           wm_pos=args.label_pos,
                            labels=label_windows, font=args.font,
                            label_size=args.label_size)
 

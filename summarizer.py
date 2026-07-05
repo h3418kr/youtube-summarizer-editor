@@ -219,15 +219,18 @@ def apply_overlays(in_video: str, out_video: str, tmpdir: str, *,
         vlabel = "[v1]"
 
     if labels:
-        # 소제목을 마크와 같은 코너에, 마크 바로 아래(상단)/위(하단)로 픽셀 좌표
-        # 배치. \an(numpad): 7=상좌 8=상중 9=상우 / 1=하좌 2=하중 3=하우.
+        # 소제목을 코너에 픽셀 좌표로 배치.
+        # \an(numpad): 7=상좌 8=상중 9=상우 / 1=하좌 2=하중 3=하우.
+        # 마크가 이 단계에 없더라도(완성 탭에서 별도로 얹는 경우) 그 위에 마크가
+        # 들어갈 여지를 남기려고 기본 여백(reserve)을 두어 코너에서 살짝 안쪽에 둔다.
         gap = 12
+        reserve = logo_h_scaled if has_wm else int(H * 0.11)
         if top:
             anchor = 7 if left else 9
-            y = margin + logo_h_scaled + gap
+            y = margin + reserve + gap
         else:
             anchor = 1 if left else 3
-            y = H - margin - logo_h_scaled - gap
+            y = H - margin - reserve - gap
         x = margin if left else (W - margin)
         ass = _build_label_ass(W, H, labels, anchor, x, y, font, label_size)
         ass_name = "labels.ass"
@@ -708,15 +711,6 @@ def main():
                         help="영상을 만들지 않고 하이라이트 후보 구간만 분석해 "
                              "구간 목록 파일(_segments.txt)로 저장합니다. "
                              "자막 전사(Whisper)를 건너뛰어 훨씬 빠릅니다.")
-    parser.add_argument("--watermark", default="",
-                        help="본영상에 새겨넣을 마크(로고/채널명) 이미지 경로. "
-                             "완성 탭에서 인트로/아웃트로를 붙여도 본영상에만 남습니다.")
-    parser.add_argument("--wm-pos", default="tr", choices=list(WM_POSITIONS.keys()),
-                        help="마크 위치: tl(좌상) tr(우상) bl(좌하) br(우하). 기본 tr")
-    parser.add_argument("--wm-scale", type=float, default=0.12,
-                        help="마크 가로폭 = 영상 가로폭 * 이 값 (기본 0.12)")
-    parser.add_argument("--wm-margin", type=int, default=24,
-                        help="마크 가장자리 여백(픽셀). 기본 24")
     args = parser.parse_args()
 
     if args.no_transition:
@@ -824,15 +818,8 @@ def main():
         v_name = TRANSITION_STYLES.get(args.transition_style, args.transition_style)
         s_name = SFX_SPECS.get(args.sfx_kind, (None, None, 0, args.sfx_kind))[3]
         print(f"[6/6] Cutting and concatenating segments... (화면전환: {v_name} / 효과음: {s_name})")
-        use_wm = bool(args.watermark) and os.path.isfile(args.watermark)
-        cut_target = os.path.join(tmpdir, "summary_raw.mp4") if use_wm else out_video
-        cut_and_concat(video_path, segments, cut_target, tmpdir,
+        cut_and_concat(video_path, segments, out_video, tmpdir,
                        transition_style=args.transition_style, sfx_kind=args.sfx_kind)
-        if use_wm:
-            print(f"  마크 삽입 ({WM_POSITIONS.get(args.wm_pos, args.wm_pos)})...")
-            apply_overlays(cut_target, out_video, tmpdir,
-                           watermark=args.watermark, wm_pos=args.wm_pos,
-                           wm_scale=args.wm_scale, wm_margin=args.wm_margin)
 
         print(f"[7/7] Building subtitles...")
         srt_content = build_srt(whisper_result, segments)

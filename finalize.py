@@ -134,20 +134,46 @@ def prep_clip(clip: str, w: int, h: int, fps: str, out_ts: str,
     run_ffmpeg(cmd, label=label)
 
 
-def burn_subs(video: str, srt_name: str, w: int, h: int, fps: str,
-              out_ts: str, cwd: str, font: str, font_size: int) -> None:
-    """본편 영상에 자막을 하드섭으로 새겨넣는다.
+WM_POSITIONS = {"tl": "좌상단", "tr": "우상단", "bl": "좌하단", "br": "우하단"}
 
-    subtitles 필터의 경로는 Windows 에서 콜론/역슬래시 이스케이프가 까다로워,
-    SRT 를 작업 폴더(cwd)에 복사한 뒤 상대 경로(srt_name)로 참조한다.
+
+def render_main(video: str, srt_name: str, w: int, h: int, fps: str,
+                out_ts: str, cwd: str, font: str, font_size: int,
+                burn_sub: bool, watermark: str = "", wm_pos: str = "tr",
+                wm_scale: float = 0.12, wm_margin: int = 24) -> None:
+    """본편을 규격 통일 + (선택)자막 하드섭 + (선택)채널 마크 오버레이 하여 TS 로.
+
+    마크는 본편에만 들어간다(인트로/아웃트로 TS 는 손대지 않으므로 자동으로
+    본영상에만 남는다). subtitles 필터 경로는 Windows 이스케이프가 까다로워
+    SRT 를 작업 폴더(cwd)에 복사한 뒤 상대 경로로 참조한다.
     """
-    style = (f"FontName={font},FontSize={font_size},"
-             f"PrimaryColour=&H00FFFFFF,OutlineColour=&H90000000,"
-             f"BorderStyle=1,Outline=2,Shadow=1,MarginV=28")
-    vf = (f"scale={w}:{h},setsar=1,"
-          f"subtitles={srt_name}:force_style='{style}',format=yuv420p")
-    cmd = ["ffmpeg", "-y", "-i", video, "-vf", vf] + _enc_opts(fps) + [out_ts]
-    run_ffmpeg(cmd, label="(자막)", cwd=cwd)
+    # 비디오 체인: scale -> (자막) -> [base]
+    chain = f"[0:v]scale={w}:{h},setsar=1"
+    if burn_sub and srt_name:
+        style = (f"FontName={font},FontSize={font_size},"
+                 f"PrimaryColour=&H00FFFFFF,OutlineColour=&H90000000,"
+                 f"BorderStyle=1,Outline=2,Shadow=1,MarginV=28")
+        chain += f",subtitles={srt_name}:force_style='{style}'"
+
+    inputs = ["-i", os.path.abspath(video)]
+    has_wm = bool(watermark) and os.path.isfile(watermark)
+    if has_wm:
+        lw = max(16, int(w * float(wm_scale)))
+        m = int(wm_margin)
+        left = wm_pos in ("tl", "bl")
+        top = wm_pos in ("tl", "tr")
+        ox = f"{m}" if left else f"W-w-{m}"
+        oy = f"{m}" if top else f"H-h-{m}"
+        inputs += ["-i", os.path.abspath(watermark)]
+        fc = (f"{chain}[base];[1:v]scale={lw}:-1[wm];"
+              f"[base][wm]overlay={ox}:{oy},format=yuv420p[v]")
+    else:
+        fc = f"{chain},format=yuv420p[v]"
+
+    cmd = (["ffmpeg", "-y"] + inputs +
+           ["-filter_complex", fc, "-map", "[v]", "-map", "0:a?"] +
+           _enc_opts(fps) + [out_ts])
+    run_ffmpeg(cmd, label="(본편)", cwd=cwd)
 
 
 def concat_ts(ts_files, out_mp4: str, tmpdir: str) -> None:
@@ -201,7 +227,9 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
              cover: bool = True, burn: bool = True,
              font: str = "Malgun Gothic", font_size: int = 24,
              intro_video: str = "", outro_video: str = "",
-             bgm: str = "", bgm_volume: float = 0.25) -> None:
+             bgm: str = "", bgm_volume: float = 0.25,
+             watermark: str = "", wm_pos: str = "tr",
+             wm_scale: float = 0.12, wm_margin: int = 24) -> None:
     video = os.path.abspath(video)
     out_path = os.path.abspath(out_path)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
@@ -226,18 +254,18 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
             make_intro(thumb, w, h, fps, intro_sec, intro_ts)
             ts_files.append(intro_ts)
 
-        # 3) 본편
-        print(f"[본편] 처리{' + 자막 새겨넣기' if (burn and srt) else ''}...", flush=True)
+        # 3) 본편 (자막 하드섭 + 채널 마크는 여기서만 = 본영상에만 들어간다)
+        wm_note = f" + 마크({WM_POSITIONS.get(wm_pos, wm_pos)})" if watermark else ""
+        print(f"[본편] 처리{' + 자막 새겨넣기' if (burn and srt) else ''}{wm_note}...",
+              flush=True)
         main_ts = os.path.join(tmp, "main.ts")
+        srt_name = ""
         if burn and srt:
             srt_name = "sub.srt"
             shutil.copyfile(srt, os.path.join(tmp, srt_name))
-            burn_subs(video, srt_name, w, h, fps, main_ts, tmp, font, font_size)
-        else:
-            # 자막 없이 규격만 통일해서 인코딩
-            vf = f"scale={w}:{h},setsar=1,format=yuv420p"
-            run_ffmpeg(["ffmpeg", "-y", "-i", video, "-vf", vf] +
-                       _enc_opts(fps) + [main_ts], label="(본편)")
+        render_main(video, srt_name, w, h, fps, main_ts, tmp, font, font_size,
+                    burn_sub=bool(burn and srt), watermark=watermark,
+                    wm_pos=wm_pos, wm_scale=wm_scale, wm_margin=wm_margin)
         ts_files.append(main_ts)
 
         # 4) 아웃트로 영상 (있으면 맨 뒤)
@@ -290,6 +318,15 @@ def main():
                     help="자막을 새겨넣지 않음")
     ap.add_argument("--font", default="Malgun Gothic", help="자막 글꼴")
     ap.add_argument("--font-size", type=int, default=24, help="자막 크기")
+    ap.add_argument("--watermark", default="",
+                    help="본영상에 새겨넣을 채널 마크(로고) 이미지 경로. "
+                         "인트로/아웃트로엔 들어가지 않습니다.")
+    ap.add_argument("--wm-pos", default="tr", choices=list(WM_POSITIONS.keys()),
+                    help="마크 위치: tl(좌상) tr(우상) bl(좌하) br(우하). 기본 tr")
+    ap.add_argument("--wm-scale", type=float, default=0.12,
+                    help="마크 가로폭 = 영상 가로폭 * 이 값 (기본 0.12)")
+    ap.add_argument("--wm-margin", type=int, default=24,
+                    help="마크 가장자리 여백(픽셀). 기본 24")
     ap.set_defaults(intro=True, cover=True, burn=True)
     args = ap.parse_args()
 
@@ -316,12 +353,19 @@ def main():
             print(f"ERROR: {label} 파일을 찾을 수 없습니다: {path}")
             sys.exit(1)
 
+    watermark = "" if args.watermark in ("", "-") else args.watermark
+    if watermark and not os.path.isfile(watermark):
+        print(f"ERROR: 마크 이미지를 찾을 수 없습니다: {watermark}")
+        sys.exit(1)
+
     finalize(args.video, srt, thumb, args.output,
              intro_sec=args.intro_sec, add_intro=args.intro,
              cover=args.cover, burn=args.burn,
              font=args.font, font_size=args.font_size,
              intro_video=intro_video, outro_video=outro_video,
-             bgm=bgm, bgm_volume=args.bgm_volume)
+             bgm=bgm, bgm_volume=args.bgm_volume,
+             watermark=watermark, wm_pos=args.wm_pos,
+             wm_scale=args.wm_scale, wm_margin=args.wm_margin)
 
 
 if __name__ == "__main__":

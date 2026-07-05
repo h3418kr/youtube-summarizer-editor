@@ -279,13 +279,44 @@ GAME_PROMPT = (
 )
 
 
+def _norm_txt(s: str) -> str:
+    """비교용 정규화: 한글/영문/숫자만 남기고 소문자화."""
+    return re.sub(r'[^가-힣a-zA-Z0-9]', '', s).lower()
+
+
+def _drop_prompt_echo(result, prompt: str):
+    """initial_prompt 를 그대로 받아쓴(환각) 세그먼트를 제거한다.
+
+    Whisper 는 음성이 불명확하면(음악·잡음·무음 등) 힌트로 준 프롬프트 문장을
+    그대로 출력하는 경우가 있다(prompt echo). 세그먼트 텍스트(정규화)가 12자
+    이상이면서 프롬프트(정규화)에 통째로 포함되면, 실제 말이 아니라 프롬프트
+    따라읽기로 보고 버린다.
+    """
+    pn = _norm_txt(prompt or "")
+    if not pn:
+        return result
+    kept = []
+    for seg in result.get("segments", []):
+        tn = _norm_txt(seg.get("text", ""))
+        if len(tn) >= 12 and tn in pn:
+            continue
+        kept.append(seg)
+    result["segments"] = kept
+    return result
+
+
 def transcribe(wav_path: str, model_name: str, lang: str, prompt: str = None):
     print(f"  Transcribing with Whisper ({model_name})...")
     model = whisper.load_model(model_name, download_root=_bundled_model_root())
     result = model.transcribe(
         wav_path, language=lang, word_timestamps=True, verbose=False,
         initial_prompt=prompt or None,
+        # 이전 텍스트를 문맥으로 물고 가면 환각/반복 루프가 커진다. 짧은
+        # 하이라이트 클립에는 끄는 편이 프롬프트 따라읽기·반복을 크게 줄인다.
+        condition_on_previous_text=False,
     )
+    if prompt:
+        result = _drop_prompt_echo(result, prompt)
     return result
 
 

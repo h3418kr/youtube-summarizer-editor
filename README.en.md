@@ -9,7 +9,7 @@
 **A video tool that automatically analyzes long live-stream VODs, extracts only the best moments (highlights),**
 **and layers on subtitles, transitions and background music to produce an upload-ready finished video.**
 
-Powered by Whisper speech recognition and ffmpeg · comes with a **graphical UI (GUI)** so you don't need to know Python
+Powered by Whisper speech recognition and ffmpeg · comes with a **graphical UI (GUI)** so you don't need to know Python · **modern dark theme with Windows 11 styling (sv-ttk)**
 
 </div>
 
@@ -105,7 +105,7 @@ AI subtitles aren't perfect. Follow the order below to produce a **finished vide
 Below is the actual program screen. Just follow the numbers.
 
 <div align="center">
-<img src="assets/ui-summarize.en.svg" alt="Summarize tab guide — the role of each button and field" width="100%">
+<img src="assets/ui-summarize.en.png" alt="Summarize tab guide — the role of each button and field" width="100%">
 </div>
 
 | Item | Description | Default |
@@ -139,6 +139,10 @@ When finished, three files appear in the output folder:
 
 Use this when you want to build a summary from a **video file you already have** plus **time ranges you pick yourself**, instead of downloading a URL and auto-analyzing. (An alternative to the Summarize tab.)
 
+<div align="center">
+<img src="assets/ui-manual.en.png" alt="Manual highlights tab guide" width="100%">
+</div>
+
 | Item | Description | Default |
 |------|------|--------|
 | Video file | Select the local video (mp4, etc.) to edit | — |
@@ -168,6 +172,10 @@ Range input supports `SS` / `MM:SS` / `HH:MM:SS`, with an optional `| subtitle`:
 ### STEP 1-C — Shorts tab (vertical video)
 
 Pick one great scene from a landscape video and turn it into a **9:16 vertical video for YouTube Shorts / Reels / TikTok**.
+
+<div align="center">
+<img src="assets/ui-shorts.en.png" alt="Shorts tab guide" width="100%">
+</div>
 
 | Item | Description | Default |
 |------|------|--------|
@@ -206,7 +214,7 @@ Auto-generated subtitles sometimes mishear game-specific terms, names, etc. Revi
 Combine the summary video + (edited) subtitles + thumbnail image into an upload-ready final mp4.
 
 <div align="center">
-<img src="assets/ui-finalize.en.svg" alt="Finalize tab guide — the role of each button and field" width="100%">
+<img src="assets/ui-finalize.en.png" alt="Finalize tab guide — the role of each button and field" width="100%">
 </div>
 
 | Item | Description |

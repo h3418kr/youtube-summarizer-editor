@@ -155,6 +155,25 @@ STRINGS = {
         "btn_shorts": "쇼츠 만들기",
         "msg_shorts_done": ("쇼츠 영상이 저장되었습니다.\n\n폴더: {folder}\n\n"
                             "• _shorts.mp4  — 1080x1920 세로 영상"),
+        # autoshorts tab
+        "tab_autoshorts": "  쇼츠 자동  ",
+        "autoshorts_heading": "쇼츠 자동 — 영상 1개에서 하이라이트 N개 자동 생성",
+        "autoshorts_count": "생성할 쇼츠 개수",
+        "autoshorts_clip_len": "각 쇼츠 길이 (초)",
+        "autoshorts_mode": "세로 변환 방식",
+        "autoshorts_subtitles": "자막 자동 생성 & 번인 (Whisper)",
+        "autoshorts_model": "Whisper 모델",
+        "autoshorts_language": "언어",
+        "autoshorts_sub_pos": "자막 위치",
+        "autoshorts_font": "자막 글꼴",
+        "autoshorts_font_size": "자막 크기",
+        "autoshorts_ai_title": "AI 제목(Gemini) 추가",
+        "autoshorts_gemini_key": "Gemini API 키",
+        "autoshorts_gemini_hint": "(aistudio.google.com 에서 무료 발급 · 저장됨)",
+        "btn_autoshorts": "쇼츠 자동 만들기",
+        "msg_autoshorts_done": ("자동 쇼츠 {count}개가 저장되었습니다.\n\n폴더: {folder}\n\n"
+                                "• _short_01.mp4 ~ _short_NN.mp4  — 1080x1920 세로 쇼츠"),
+        "msg_need_gemini": "AI 제목을 사용하려면 Gemini API 키가 필요합니다.",
         # finalize tab
         "video": "영상 파일",
         "srt": "자막 파일 (.srt)",
@@ -299,6 +318,25 @@ STRINGS = {
         "btn_shorts": "Make Short",
         "msg_shorts_done": ("Short saved.\n\nFolder: {folder}\n\n"
                             "- _shorts.mp4  — 1080x1920 vertical video"),
+        # autoshorts tab
+        "tab_autoshorts": "  Auto Shorts  ",
+        "autoshorts_heading": "Auto Shorts — generate N shorts from 1 video automatically",
+        "autoshorts_count": "Number of shorts",
+        "autoshorts_clip_len": "Length per short (s)",
+        "autoshorts_mode": "Vertical mode",
+        "autoshorts_subtitles": "Auto-generate & burn subtitles (Whisper)",
+        "autoshorts_model": "Whisper model",
+        "autoshorts_language": "Language",
+        "autoshorts_sub_pos": "Subtitle position",
+        "autoshorts_font": "Subtitle font",
+        "autoshorts_font_size": "Subtitle size",
+        "autoshorts_ai_title": "Add AI titles (Gemini)",
+        "autoshorts_gemini_key": "Gemini API key",
+        "autoshorts_gemini_hint": "(free from aistudio.google.com · saved)",
+        "btn_autoshorts": "Make Auto Shorts",
+        "msg_autoshorts_done": ("Auto shorts ({count} files) saved.\n\nFolder: {folder}\n\n"
+                                "- _short_01.mp4 ~ _short_NN.mp4  — 1080x1920 vertical shorts"),
+        "msg_need_gemini": "AI titles require a Gemini API key.",
         # finalize tab
         "video": "Video file",
         "srt": "Subtitle (.srt)",
@@ -1325,6 +1363,233 @@ def build_finalize_tab(nb):
     return frame
 
 
+# ── 탭 5: 쇼츠 자동 만들기 ───────────────────────────────────────────────────────
+
+def build_autoshorts_tab(nb):
+    frame = ttk.Frame(nb, padding=4)
+    nb.add(frame, text=_t("tab_autoshorts"))
+    reg("tab", (nb, frame), "tab_autoshorts")
+    frame.columnconfigure(1, weight=1)
+    frame.rowconfigure(7, weight=1)
+
+    pad = {"padx": 12, "pady": 4}
+
+    heading = ttk.Label(frame, text=_t("autoshorts_heading"), font=("Segoe UI", 13, "bold"))
+    reg("text", heading, "autoshorts_heading")
+    heading.grid(row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 8))
+
+    video_var = tk.StringVar()
+    outdir_var = tk.StringVar(value=os.path.join(SCRIPT_DIR, "output"))
+    name_var = tk.StringVar()
+    count_var = tk.StringVar(value="5")
+    clip_len_var = tk.StringVar(value="30")
+
+    # 영상 입력 (URL 또는 로컬)
+    _label(frame, "url", row=1, column=0, sticky="w", **pad)
+    ttk.Entry(frame, textvariable=video_var, width=52).grid(
+        row=1, column=1, sticky="ew", padx=(0, 4), pady=4)
+    browse_vid = ttk.Button(
+        frame, text=_t("browse_file"),
+        command=lambda: video_var.set(
+            filedialog.askopenfilename(
+                title=_t("dlg_url_video"),
+                filetypes=[(_t("ft_video"), "*.mp4 *.mov *.mkv *.avi *.webm"),
+                           (_t("ft_all"), "*.*")]) or video_var.get()))
+    reg("text", browse_vid, "browse_file")
+    browse_vid.grid(row=1, column=2, padx=(0, 12), pady=4)
+
+    # 생성할 쇼츠 개수
+    _label(frame, "autoshorts_count", row=2, column=0, sticky="w", **pad)
+    ttk.Entry(frame, textvariable=count_var, width=6).grid(
+        row=2, column=1, sticky="w", padx=(0, 4), pady=4)
+
+    # 각 쇼츠 길이(초)
+    _label(frame, "autoshorts_clip_len", row=3, column=0, sticky="w", **pad)
+    ttk.Entry(frame, textvariable=clip_len_var, width=6).grid(
+        row=3, column=1, sticky="w", padx=(0, 4), pady=4)
+
+    # 출력 폴더
+    _label(frame, "outdir", row=4, column=0, sticky="w", **pad)
+    ttk.Entry(frame, textvariable=outdir_var, width=52).grid(
+        row=4, column=1, sticky="ew", padx=(0, 4), pady=4)
+    browse_out = ttk.Button(
+        frame, text=_t("browse"),
+        command=lambda: outdir_var.set(
+            filedialog.askdirectory(title=_t("dlg_outdir")) or outdir_var.get()))
+    reg("text", browse_out, "browse")
+    browse_out.grid(row=4, column=2, padx=(0, 12), pady=4)
+
+    # 출력 이름 (선택)
+    _label(frame, "man_name", row=5, column=0, sticky="w", **pad)
+    ttk.Entry(frame, textvariable=name_var, width=52).grid(
+        row=5, column=1, columnspan=2, sticky="ew", padx=(0, 12), pady=4)
+
+    # 옵션
+    opt = ttk.LabelFrame(frame, text=_t("options"), padding=8)
+    reg("text", opt, "options")
+    opt.grid(row=6, column=0, columnspan=3, sticky="ew", padx=12, pady=6)
+    opt.columnconfigure(1, weight=1)
+    opt.columnconfigure(3, weight=1)
+
+    # 세로 변환 방식
+    _label(opt, "autoshorts_mode", row=0, column=0, sticky="w", padx=(8, 4), pady=3)
+    mode_combo = ttk.Combobox(opt, values=_t("shorts_mode_values"), width=18, state="readonly")
+    mode_combo.current(0)  # smart (기본값)
+    reg("combo", (mode_combo, "shorts_mode_values"), "shorts_mode_values")
+    mode_combo.grid(row=0, column=1, sticky="w", pady=3)
+
+    # 자막 체크박스
+    subs_var = tk.BooleanVar(value=False)
+    chk_subs = ttk.Checkbutton(opt, text=_t("autoshorts_subtitles"), variable=subs_var)
+    reg("text", chk_subs, "autoshorts_subtitles")
+    chk_subs.grid(row=1, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 3))
+
+    # Whisper 모델
+    _label(opt, "autoshorts_model", row=2, column=0, sticky="w", padx=(8, 4), pady=3)
+    model_combo = ttk.Combobox(opt, values=_t("model_values"), width=16, state="readonly")
+    model_combo.current(2)  # small
+    reg("combo", (model_combo, "model_values"), "model_values")
+    model_combo.grid(row=2, column=1, sticky="w", pady=3)
+
+    # 언어
+    _label(opt, "autoshorts_language", row=2, column=2, sticky="w", padx=(16, 4), pady=3)
+    lang_var = tk.StringVar(value="ko")
+    ttk.Entry(opt, textvariable=lang_var, width=6).grid(row=2, column=3, sticky="w", pady=3)
+
+    # 자막 위치
+    _label(opt, "autoshorts_sub_pos", row=3, column=0, sticky="w", padx=(8, 4), pady=3)
+    subpos_combo = ttk.Combobox(opt, values=_t("shorts_sub_pos_values"), width=12, state="readonly")
+    subpos_combo.current(0)  # bottom
+    reg("combo", (subpos_combo, "shorts_sub_pos_values"), "shorts_sub_pos_values")
+    subpos_combo.grid(row=3, column=1, sticky="w", pady=3)
+
+    # 글꼴
+    _label(opt, "autoshorts_font", row=3, column=2, sticky="w", padx=(16, 4), pady=3)
+    font_combo = ttk.Combobox(opt, values=_t("font_values"), width=12, state="readonly")
+    font_combo.current(0)  # Paperlology
+    reg("combo", (font_combo, "font_values"), "font_values")
+    font_combo.grid(row=3, column=3, sticky="w", pady=3)
+
+    # 글꼴 크기
+    _label(opt, "autoshorts_font_size", row=4, column=0, sticky="w", padx=(8, 4), pady=3)
+    fontsize_var = tk.StringVar(value="54")
+    ttk.Entry(opt, textvariable=fontsize_var, width=6).grid(row=4, column=1, sticky="w", pady=3)
+
+    # AI 제목 체크박스
+    ai_title_var = tk.BooleanVar(value=False)
+    chk_ai = ttk.Checkbutton(opt, text=_t("autoshorts_ai_title"), variable=ai_title_var)
+    reg("text", chk_ai, "autoshorts_ai_title")
+    chk_ai.grid(row=5, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 3))
+
+    # Gemini 키
+    _label(opt, "autoshorts_gemini_key", row=6, column=0, sticky="w", padx=(8, 4), pady=3)
+    gemini_var = tk.StringVar(value=load_gemini_key())
+    gemini_entry = ttk.Entry(opt, textvariable=gemini_var, width=30, show="•")
+    gemini_entry.grid(row=6, column=1, columnspan=3, sticky="ew", padx=(0, 4), pady=3)
+    gemini_hint = ttk.Label(opt, text=_t("autoshorts_gemini_hint"), foreground="#9ca3af", font=("Segoe UI", 9))
+    reg("text", gemini_hint, "autoshorts_gemini_hint")
+    gemini_hint.grid(row=7, column=0, columnspan=4, sticky="w", padx=8, pady=(0, 3))
+
+    # 실행 버튼
+    btn_label_var = tk.StringVar(value=_t("btn_autoshorts"))
+    reg("var", btn_label_var, "btn_autoshorts")
+    run_btn = ttk.Button(frame, textvariable=btn_label_var, style="Accent.TButton")
+    run_btn.grid(row=8, column=0, columnspan=3, padx=12, pady=8, sticky="ew")
+
+    # 로그
+    log = make_log(frame)
+    log.grid(row=9, column=0, columnspan=3, sticky="nsew", padx=12, pady=(0, 12))
+
+    def on_run():
+        video = video_var.get().strip()
+        if not video:
+            messagebox.showwarning(_t("msg_input_error"), _t("msg_need_url"))
+            return
+
+        # Validate count and clip_len
+        try:
+            count = int(count_var.get().strip())
+            if count < 1:
+                raise ValueError
+        except Exception:
+            messagebox.showwarning(_t("msg_input_error"), "쇼츠 개수는 1 이상의 정수여야 합니다.")
+            return
+
+        try:
+            clip_len = float(clip_len_var.get().strip())
+            if clip_len < 1:
+                raise ValueError
+        except Exception:
+            messagebox.showwarning(_t("msg_input_error"), "쇼츠 길이는 1 이상의 숫자여야 합니다.")
+            return
+
+        # AI 제목 체크
+        gkey = ""
+        if ai_title_var.get():
+            gkey = gemini_var.get().strip()
+            if not gkey:
+                messagebox.showwarning(_t("msg_input_error"), _t("msg_need_gemini"))
+                return
+            save_gemini_key(gkey)
+
+        cmd = [
+            sys.executable, os.path.join(SCRIPT_DIR, "batch_shorts.py"),
+            video,
+            "--count", str(count),
+            "--clip-len", str(clip_len),
+            "--mode", SHORTS_MODE_CODES[max(mode_combo.current(), 0)],
+            "--output-dir", outdir_var.get(),
+        ]
+        if name_var.get().strip():
+            cmd += ["--name", name_var.get().strip()]
+        if subs_var.get():
+            cmd += ["--subtitles",
+                    "--model", MODEL_CODES[max(model_combo.current(), 0)],
+                    "--lang", lang_var.get(),
+                    "--sub-pos", SHORTS_SUBPOS_CODES[max(subpos_combo.current(), 0)],
+                    "--font", FONT_CODES[max(font_combo.current(), 0)],
+                    "--font-size", fontsize_var.get().strip()]
+        if ai_title_var.get() and gkey:
+            cmd += ["--ai-title", "--gemini-key", gkey]
+
+        log.config(state="normal")
+        log.delete("1.0", tk.END)
+        log.config(state="disabled")
+        run_btn.config(state="disabled")
+        btn_label_var.set(_t("processing"))
+
+        # Get root window to access shared progress and status
+        root_window = frame.winfo_toplevel()
+        progress = getattr(root_window, 'progress', None)
+        status_var = getattr(root_window, 'status_var', None)
+        progress_show = getattr(root_window, '_progress_show', None)
+        progress_hide = getattr(root_window, '_progress_hide', None)
+
+        def done(ok):
+            run_btn.config(state="normal")
+            btn_label_var.set(_t("btn_autoshorts"))
+            if progress:
+                progress.stop()
+            if progress_hide:
+                progress_hide()
+            if status_var:
+                status_var.set(_t("status_ready"))
+            if ok:
+                messagebox.showinfo(
+                    _t("msg_done"),
+                    _t("msg_autoshorts_done").format(count=count, folder=outdir_var.get()))
+            else:
+                messagebox.showerror(_t("msg_error"), _t("msg_error_body"))
+
+        if progress and progress_show:
+            progress_show()
+            progress.start()
+        run_script(cmd, log, done, status_var=status_var)
+
+    run_btn.config(command=on_run)
+    return frame
+
+
 # ── 메인 ──────────────────────────────────────────────────────────────────────
 
 def main():
@@ -1415,6 +1680,7 @@ def main():
     build_summarizer_tab(nb)
     build_manual_tab(nb)
     build_shorts_tab(nb)
+    build_autoshorts_tab(nb)
     build_finalize_tab(nb)
 
     # Enable Windows dark title bar (Windows 10+)

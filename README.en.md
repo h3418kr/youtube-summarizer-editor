@@ -9,7 +9,7 @@
 **A video tool that automatically analyzes long live-stream VODs, extracts only the best moments (highlights),**
 **and layers on subtitles, transitions and background music to produce an upload-ready finished video.**
 
-Powered by Whisper speech recognition and ffmpeg · comes with a **graphical UI (GUI)** so you don't need to know Python · **modern dark theme with Windows 11 styling (sv-ttk)**
+Powered by Whisper speech recognition and ffmpeg · comes with a **graphical UI (GUI)** so you don't need to know Python · **modern dark theme with Windows 11 styling (sv-ttk)** · **automatic update notifications**
 
 </div>
 
@@ -75,6 +75,7 @@ The GUI (`요약기_gui.py`) has five tabs. A **KO/EN language toggle button (�
 - Add **background music (BGM)** and it plays **only over the main video** (not the intro/outro clips or thumbnail intro). It's automatically **looped (if short) or cut (if long)** to the main video's length, at a lowered volume (default 0.25) so it mixes under the original speech instead of covering it.
 - Add a **channel mark (logo image)** in any corner (top-left / top-right / bottom-left / bottom-right). The mark is burned onto the **main video only** — it won't appear on the intro/outro clips. A solid-background logo can be **keyed out** (white/black) to make it transparent.
 - **Auto keywords (Gemini AI)** — with a free Gemini API key, the AI reads the subtitles and extracts a **key keyword per section**, shown **automatically under the mark** (e.g. "Rune farm", "Boss fight" per section).
+- **Loudness normalization** — matches the wildly-varying loudness of stream recordings to the **YouTube standard (-14 LUFS)** precisely (fixes "too quiet / too loud"; accurate 2-pass processing).
 - Intro length, subtitle size, BGM volume, and each option can be toggled on/off.
 
 ---
@@ -285,6 +286,7 @@ Combine the summary video + (edited) subtitles + thumbnail image into an upload-
 | Add intro | Use the thumbnail as the opening scene on/off |
 | Insert cover | Embed the thumbnail as album-art-style cover in the mp4 on/off |
 | Burn subtitles | Bake subtitles into the video (hardsub) on/off |
+| Normalize loudness | Match audio to the YouTube standard (-14 LUFS) on/off |
 
 **Button: click "Make final video"** → everything is merged automatically and the final mp4 is saved.
 

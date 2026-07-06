@@ -622,12 +622,16 @@ def build_summarizer_tab(nb):
         root_window = frame.winfo_toplevel()
         progress = getattr(root_window, 'progress', None)
         status_var = getattr(root_window, 'status_var', None)
+        progress_show = getattr(root_window, '_progress_show', None)
+        progress_hide = getattr(root_window, '_progress_hide', None)
 
         def done(ok):
             run_btn.config(state="normal")
             btn_label_var.set(_t("btn_summarize"))
             if progress:
                 progress.stop()
+            if progress_hide:
+                progress_hide()
             if status_var:
                 status_var.set(_t("status_ready"))
             if not ok:
@@ -641,7 +645,8 @@ def build_summarizer_tab(nb):
                     _t("msg_done"),
                     _t("msg_summ_done").format(folder=outdir_var.get()))
 
-        if progress:
+        if progress and progress_show:
+            progress_show()
             progress.start()
         run_script(cmd, log, done, status_var=status_var)
 
@@ -800,12 +805,16 @@ def build_manual_tab(nb):
         root_window = frame.winfo_toplevel()
         progress = getattr(root_window, 'progress', None)
         status_var = getattr(root_window, 'status_var', None)
+        progress_show = getattr(root_window, '_progress_show', None)
+        progress_hide = getattr(root_window, '_progress_hide', None)
 
         def done(ok):
             run_btn.config(state="normal")
             btn_label_var.set(_t("btn_manual"))
             if progress:
                 progress.stop()
+            if progress_hide:
+                progress_hide()
             if status_var:
                 status_var.set(_t("status_ready"))
             if ok:
@@ -815,7 +824,8 @@ def build_manual_tab(nb):
             else:
                 messagebox.showerror(_t("msg_error"), _t("msg_error_body"))
 
-        if progress:
+        if progress and progress_show:
+            progress_show()
             progress.start()
         run_script(cmd, log, done, status_var=status_var)
 
@@ -974,12 +984,16 @@ def build_shorts_tab(nb):
         root_window = frame.winfo_toplevel()
         progress = getattr(root_window, 'progress', None)
         status_var = getattr(root_window, 'status_var', None)
+        progress_show = getattr(root_window, '_progress_show', None)
+        progress_hide = getattr(root_window, '_progress_hide', None)
 
         def done(ok):
             run_btn.config(state="normal")
             btn_label_var.set(_t("btn_shorts"))
             if progress:
                 progress.stop()
+            if progress_hide:
+                progress_hide()
             if status_var:
                 status_var.set(_t("status_ready"))
             if ok:
@@ -989,7 +1003,8 @@ def build_shorts_tab(nb):
             else:
                 messagebox.showerror(_t("msg_error"), _t("msg_error_body"))
 
-        if progress:
+        if progress and progress_show:
+            progress_show()
             progress.start()
         run_script(cmd, log, done, status_var=status_var)
 
@@ -1231,12 +1246,16 @@ def build_finalize_tab(nb):
         root_window = frame.winfo_toplevel()
         progress = getattr(root_window, 'progress', None)
         status_var = getattr(root_window, 'status_var', None)
+        progress_show = getattr(root_window, '_progress_show', None)
+        progress_hide = getattr(root_window, '_progress_hide', None)
 
         def done(ok):
             run_btn.config(state="normal")
             btn_label_var.set(_t("btn_finalize"))
             if progress:
                 progress.stop()
+            if progress_hide:
+                progress_hide()
             if status_var:
                 status_var.set(_t("status_ready"))
             if ok:
@@ -1245,7 +1264,8 @@ def build_finalize_tab(nb):
             else:
                 messagebox.showerror(_t("msg_error"), _t("msg_error_body"))
 
-        if progress:
+        if progress and progress_show:
+            progress_show()
             progress.start()
         run_script(cmd, log, done, status_var=status_var)
 
@@ -1323,6 +1343,19 @@ def main():
 
     progress = ttk.Progressbar(progress_frame, mode="indeterminate", length=200)
     progress.pack(side="right", padx=4, pady=2)
+
+    # Hide progress bar by default (only show during job runs)
+    progress.pack_forget()
+
+    # Helper methods to show/hide progress bar on root
+    def _progress_show():
+        progress.pack(side="right", padx=4, pady=2)
+
+    def _progress_hide():
+        progress.pack_forget()
+
+    root._progress_show = _progress_show
+    root._progress_hide = _progress_hide
 
     nb = ttk.Notebook(root)
     nb.pack(fill="both", expand=True)

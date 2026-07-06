@@ -220,6 +220,8 @@ Combine the summary video + (edited) subtitles + thumbnail image into an upload-
 | Channel mark image (optional) | Logo image (png/jpg) overlaid on the **main video only** — not on the intro/outro |
 | Mark position | Top-left / Top-right / Bottom-left / Bottom-right (default Top-right) |
 | Make background transparent | If the logo has a solid background, key out that color (white/black); not needed for a transparent PNG |
+| Auto keywords (Gemini AI) | AI reads the subtitles and shows a **keyword per section** under the mark (needs the key below) |
+| Gemini API key | Paste a free key (saved after first use). See how to get one below |
 | Output file | Where the final file is saved |
 | Intro length (s) | How many seconds the thumbnail shows at the front (default `2.5`s) |
 | Subtitle size | Font size of the burned-in subtitles (default `24`) |
@@ -229,6 +231,20 @@ Combine the summary video + (edited) subtitles + thumbnail image into an upload-
 | Burn subtitles | Bake subtitles into the video (hardsub) on/off |
 
 **Button: click "Make final video"** → everything is merged automatically and the final mp4 is saved.
+
+#### 🔑 How to get a free Gemini API key (for Auto keywords)
+
+"Auto keywords" lets Google's Gemini AI read the subtitles and generate a keyword per section, shown under the mark. It's **completely free** — you just need a free key once.
+
+1. Open **[Google AI Studio – Get API key](https://aistudio.google.com/apikey)** (sign in with a Google account)
+2. Click **"Create API key"** → pick a project (or create one) → the key is generated
+3. Copy the key (a long string starting with `AIza...`)
+4. Paste it into the **"Gemini API key"** field on the Finalize tab → it's saved and auto-filled next time
+
+> - It runs on the **free tier** without enabling billing. One call per video, so the free quota is plenty.
+> - The **"Link an API key"** button in the Google account popup is for *billing* — use the **AI Studio** page above instead.
+> - The key must start with `AIza...`. Other formats (e.g. `AQ...`) may hit quota errors.
+> - If no keywords appear, the Finalize log shows `Gemini 키워드 N개 생성` or an error message.
 
 ---
 

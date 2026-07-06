@@ -72,6 +72,13 @@ _CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 #   creationflags      : 콘솔 창 숨김
 _PROC_KW = dict(stdin=subprocess.DEVNULL, creationflags=_CREATE_NO_WINDOW)
 
+# yt-dlp 는 번들 파이썬의 yt_dlp 패키지로 직접 호출한다.
+# pip 이 만든 yt-dlp.exe 는 빌드 PC 의 파이썬 절대경로가 박혀 있어, 다른 PC 나
+# 다른 경로로 압축을 풀면 실행이 깨진다. 또 python\Scripts 가 PATH 에 없으면
+# 'yt-dlp' 이름 자체를 못 찾는다(FileNotFoundError). 실행 중인 파이썬
+# (sys.executable) + 모듈 실행(-m yt_dlp) 이 경로·PATH 에 무관하게 항상 동작한다.
+YTDLP = [sys.executable, "-m", "yt_dlp"]
+
 
 def run(cmd, **kwargs):
     kw = dict(_PROC_KW)
@@ -115,7 +122,7 @@ def run_ffmpeg(cmd, label: str = "", cwd: str = None) -> None:
 
 
 def download_video(url: str, tmpdir: str, max_height: int = 720) -> Tuple[str, str]:
-    info_raw = run(["yt-dlp", "--print", "%(id)s|||%(title)s", "--no-playlist", url])
+    info_raw = run(YTDLP + ["--print", "%(id)s|||%(title)s", "--no-playlist", url])
     vid_id, title = info_raw.split("|||", 1)
     out_path = os.path.join(tmpdir, f"{vid_id}.mp4")
     fmt = (
@@ -124,7 +131,7 @@ def download_video(url: str, tmpdir: str, max_height: int = 720) -> Tuple[str, s
         f"/best[height<={max_height}]/best"
     )
     subprocess.run(
-        ["yt-dlp", "-f", fmt, "--merge-output-format", "mp4",
+        YTDLP + ["-f", fmt, "--merge-output-format", "mp4",
          "--newline",
          "-o", out_path, "--no-playlist", "--no-update", url],
         check=True, **_PROC_KW

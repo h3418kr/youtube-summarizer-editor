@@ -210,20 +210,47 @@ def gemini_labels(srt_path: str, api_key: str, model: str = GEMINI_MODEL):
         "설명 없이 각 줄을 '시작초-끝초|키워드' 형식으로만 출력하세요. "
         "시간은 자막의 초 단위 정수입니다.\n\n자막:\n" + srt_text
     )
+    _NONE = "BLOCK_NONE"
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        # 게임 방송 자막(전투·욕설 등)이 안전 필터에 걸려 빈 응답이 오는 것을 방지
+        "safetySettings": [
+            {"category": c, "threshold": _NONE} for c in (
+                "HARM_CATEGORY_HARASSMENT", "HARM_CATEGORY_HATE_SPEECH",
+                "HARM_CATEGORY_SEXUALLY_EXPLICIT", "HARM_CATEGORY_DANGEROUS_CONTENT")
+        ],
+    }
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
            f"{model}:generateContent?key={api_key}")
-    body = json.dumps({"contents": [{"parts": [{"text": prompt}]}]}).encode("utf-8")
+    body = json.dumps(payload).encode("utf-8")
     req = urllib.request.Request(
         url, data=body, headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=90) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+            raw = resp.read().decode("utf-8")
+    except urllib.error.HTTPError as e:
+        detail = ""
+        try:
+            detail = e.read().decode("utf-8")[:300]
+        except Exception:
+            pass
+        print(f"  (Gemini 요청 실패 HTTP {e.code}: {detail})", flush=True)
+        return []
     except Exception as e:
-        print(f"  (Gemini 키워드 생성 실패, 라벨 없이 진행: {e})", flush=True)
+        print(f"  (Gemini 연결 실패: {e})", flush=True)
+        return []
+    try:
+        data = json.loads(raw)
+        text = data["candidates"][0]["content"]["parts"][0]["text"]
+    except Exception:
+        print(f"  (Gemini 응답 형식이 예상과 다름: {raw[:300]})", flush=True)
         return []
     labels = _parse_label_lines(text)
-    print(f"  Gemini 키워드 {len(labels)}개 생성", flush=True)
+    if labels:
+        print(f"  Gemini 키워드 {len(labels)}개 생성", flush=True)
+    else:
+        one = " / ".join(text.splitlines())[:200]
+        print(f"  (Gemini 응답에서 키워드 파싱 실패. 실제 응답: {one})", flush=True)
     return labels
 
 

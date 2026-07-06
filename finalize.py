@@ -167,6 +167,44 @@ def prep_clip(clip: str, w: int, h: int, fps: str, out_ts: str,
     run_ffmpeg(cmd, label=label)
 
 
+def _loudnorm(stage: str, out_path: str) -> None:
+    """유튜브 표준(-14 LUFS)으로 음량을 2패스 정규화한다.
+
+    1패스에서 입력 라우드니스를 측정(print_format=json)하고, 그 값을 2패스에
+    넣어 linear 정규화하면 목표(-14 LUFS)에 정확히 맞는다. 단일 패스는 ±1~2 LUFS
+    오차가 나서 이미 -14 근처인 영상이 오히려 멀어지기도 한다.
+    측정/파싱 실패 시 단일 패스로 폴백한다. 비디오는 스트림 카피(빠름).
+    """
+    target = "I=-14:TP=-1.5:LRA=11"
+    measured = None
+    try:
+        p = subprocess.run(
+            ["ffmpeg", "-hide_banner", "-nostdin", "-i", stage,
+             "-af", f"loudnorm={target}:print_format=json", "-f", "null", "-"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            **_PROC_KW)
+        m = re.search(r"\{[^{}]*\"input_i\"[^{}]*\}", p.stderr, re.DOTALL)
+        if m:
+            measured = json.loads(m.group(0))
+    except Exception:
+        measured = None
+
+    if measured:
+        af = (f"loudnorm={target}:"
+              f"measured_I={measured['input_i']}:"
+              f"measured_TP={measured['input_tp']}:"
+              f"measured_LRA={measured['input_lra']}:"
+              f"measured_thresh={measured['input_thresh']}:"
+              f"offset={measured['target_offset']}:linear=true")
+    else:
+        af = f"loudnorm={target}"  # 측정 실패 시 단일 패스
+    run_ffmpeg(
+        ["ffmpeg", "-i", stage, "-c:v", "copy", "-af", af,
+         "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
+         "-movflags", "+faststart", out_path],
+        label="(음량 정규화)")
+
+
 WM_POSITIONS = {"tl": "좌상단", "tr": "우상단", "bl": "좌하단", "br": "우하단"}
 
 # ── AI 자동 키워드(Gemini) ─────────────────────────────────────────────────────
@@ -556,15 +594,11 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
         concat_ts(ts_files, combined, tmp)
         stage = combined
 
-        # 5-1) 음량 정규화
+        # 5-1) 음량 정규화 (유튜브 -14 LUFS, 2패스로 정확히)
         if loudnorm:
-            print("[음량 정규화] loudnorm=I=-14:TP=-1.5:LRA=11 적용 중...", flush=True)
+            print("[음량 정규화] 유튜브 표준(-14 LUFS)으로 2패스 정규화 중...", flush=True)
             loudnorm_out = os.path.join(tmp, "loudnorm.mp4")
-            cmd = ["ffmpeg", "-i", stage, "-c:v", "copy",
-                   "-af", "loudnorm=I=-14:TP=-1.5:LRA=11",
-                   "-c:a", "aac", "-b:a", "192k", "-ar", "44100", "-ac", "2",
-                   "-movflags", "+faststart", loudnorm_out]
-            run_ffmpeg(cmd, label="(음량 정규화)")
+            _loudnorm(stage, loudnorm_out)
             stage = loudnorm_out
 
         # 6) 표지(커버) 또는 최종 저장

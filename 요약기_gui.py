@@ -53,7 +53,7 @@ def save_gemini_key(key):
             f.write((key or "").strip())
     except Exception:
         pass
-SHORTS_MODE_CODES = ["center", "blur"]
+SHORTS_MODE_CODES = ["smart", "center", "left", "right", "blur"]
 SHORTS_SUBPOS_CODES = ["bottom", "center", "top"]  # 하단 중앙 상단
 FONT_CODES = ["Paperlogy", "Malgun Gothic"]  # 글꼴 코드 (기본: Paperlogy)
 
@@ -142,8 +142,8 @@ STRINGS = {
         "shorts_ranges_hint": "한 줄에 하나씩:  시작 - 끝   (총 3분 이하 권장, 여러 줄은 하드컷으로 이어붙임)",
         "shorts_ranges_example": "# 쇼츠로 만들 구간을 입력하세요. (예: 하이라이트 한 장면)\n0:10 - 0:40\n",
         "shorts_mode": "세로 변환 방식",
-        "shorts_mode_values": ["중앙 크롭 (기본)", "블러 배경"],
-        "shorts_mode_hint": "(중앙 크롭: 화면 가운데 확대 / 블러 배경: 원본 그대로 + 위아래 블러)",
+        "shorts_mode_values": ["스마트 자동 (권장)", "중앙 크롭", "왼쪽 크롭", "오른쪽 크롭", "블러 배경"],
+        "shorts_mode_hint": "(스마트: 움직임 많은 부분 자동 감지 / 중앙·좌·우: 수동 위치 / 블러: 원본 + 위아래 블러)",
         "shorts_subtitles": "자막 자동 생성해 크게 새겨넣기 (Whisper)",
         "shorts_font": "자막 글꼴",
         "shorts_font_size": "자막 크기",
@@ -283,8 +283,8 @@ STRINGS = {
         "shorts_ranges_hint": "One per line:  start - end   (3 min total max recommended; lines are hard-cut together)",
         "shorts_ranges_example": "# Enter the range(s) for the short (e.g. one highlight scene).\n0:10 - 0:40\n",
         "shorts_mode": "Vertical mode",
-        "shorts_mode_values": ["Center crop (default)", "Blur background"],
-        "shorts_mode_hint": "(center crop: zoom into the middle / blur: full frame + blurred bars)",
+        "shorts_mode_values": ["Smart auto (recommended)", "Center crop", "Left crop", "Right crop", "Blur background"],
+        "shorts_mode_hint": "(smart: auto-detects high-motion regions / manual: left/center/right / blur: full + bars)",
         "shorts_subtitles": "Auto-generate big burned-in subtitles (Whisper)",
         "shorts_font": "Subtitle font",
         "shorts_font_size": "Subtitle size",
@@ -923,7 +923,7 @@ def build_shorts_tab(nb):
 
     _label(opt, "shorts_mode", row=0, column=0, sticky="w", padx=(8, 4), pady=3)
     mode_combo = ttk.Combobox(opt, values=_t("shorts_mode_values"), width=18, state="readonly")
-    mode_combo.current(0)  # center
+    mode_combo.current(0)  # smart (기본값)
     reg("combo", (mode_combo, "shorts_mode_values"), "shorts_mode_values")
     mode_combo.grid(row=0, column=1, sticky="w", pady=3)
     fontsize_var = tk.StringVar(value="54")
@@ -1229,6 +1229,7 @@ def build_finalize_tab(nb):
             "-o", out,
             "--intro-sec", intro_sec_var.get(),
             "--font-size", font_size_var.get(),
+            "--font", FONT_CODES[max(font_combo.current(), 0)],
         ]
         if not intro_var.get():
             cmd += ["--no-intro"]

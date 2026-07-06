@@ -182,7 +182,8 @@ Pick one great scene from a landscape video and turn it into a **9:16 vertical v
 | Video file | Select the source (or summary) local video | — |
 | Shorts ranges | One `start - end` per line (multiple lines are hard-cut together; 3 min total max recommended) | — |
 | Vertical mode | Center crop (zoom middle) / blur background (full frame + blurred bars) | `center crop` |
-| Subtitle size | Size of the burned-in captions | `20` |
+| Subtitle size | Size of the burned-in captions (in real 1080x1920 pixels) | `54` |
+| Subtitle position | Vertical position of the captions: bottom / center / top | `bottom` |
 | Auto subtitles | Burn in big bold Whisper captions on/off | off |
 
 **Button: click "Make Short"** → `name_shorts.mp4` (1080x1920 vertical) is created.

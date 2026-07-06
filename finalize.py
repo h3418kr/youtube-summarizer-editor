@@ -149,20 +149,44 @@ def _media_wh(path: str):
     return int(st["width"]), int(st["height"])
 
 
-_LABEL_LINE = re.compile(r'(\d+(?:\.\d+)?)\s*[-~]\s*(\d+(?:\.\d+)?)\s*[|:]\s*(.+)')
+def _parse_time_tok(tok: str) -> float:
+    """'83' / '1:23' / '00:01:23' / '1:23,500' -> 초(float)."""
+    tok = tok.strip().replace(",", ".")
+    parts = [float(p) for p in tok.split(":")]
+    if len(parts) == 1:
+        return parts[0]
+    if len(parts) == 2:
+        return parts[0] * 60 + parts[1]
+    return parts[0] * 3600 + parts[1] * 60 + parts[2]
+
+
+_TIME_RANGE = re.compile(r'(\d[\d:.,]*)\s*[-~]\s*(\d[\d:.,]*)')
 
 
 def _parse_label_lines(text: str):
-    """'시작초-끝초|키워드' 형식의 여러 줄을 (start, end, keyword) 리스트로."""
+    """'시작-끝|키워드' 형식의 여러 줄을 (start, end, keyword) 리스트로.
+
+    시간은 초/분:초/시:분:초 아무 형식이나 허용하고, 키워드 구분자는 '|'.
+    (분:초의 콜론과 헷갈리지 않도록 구분자는 '|' 만 인정)
+    """
     labels = []
     for line in text.splitlines():
         line = line.strip().strip("`").strip()
-        m = _LABEL_LINE.match(line)
+        if "|" not in line:
+            continue
+        tpart, kw = line.split("|", 1)
+        kw = kw.strip().strip('"').strip("'").strip()
+        if not kw:
+            continue
+        m = _TIME_RANGE.search(tpart)
         if not m:
             continue
-        s, e = float(m.group(1)), float(m.group(2))
-        kw = m.group(3).strip().strip('"').strip("'").strip()
-        if kw and e > s:
+        try:
+            s = _parse_time_tok(m.group(1))
+            e = _parse_time_tok(m.group(2))
+        except Exception:
+            continue
+        if e > s:
             labels.append((s, e, kw))
     return labels
 
@@ -392,9 +416,18 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
 
     # AI 자동 키워드: 자막(SRT)을 Gemini 에 보내 구간별 키워드를 받아 마크 아래 표시
     labels = []
-    if auto_labels and gemini_key and srt and os.path.isfile(srt):
-        print(f"[AI 키워드] Gemini 로 구간별 키워드 생성 중...", flush=True)
-        labels = gemini_labels(srt, gemini_key, gemini_model)
+    if auto_labels:
+        if not gemini_key:
+            print("[AI 키워드] 건너뜀: Gemini API 키가 없습니다.", flush=True)
+        elif not (srt and os.path.isfile(srt)):
+            print("[AI 키워드] 건너뜀: 자막(SRT) 파일이 필요합니다. "
+                  "완성 탭에서 자막 파일을 선택하세요.", flush=True)
+        else:
+            print(f"[AI 키워드] Gemini 로 구간별 키워드 생성 중...", flush=True)
+            labels = gemini_labels(srt, gemini_key, gemini_model)
+            if not labels:
+                print("[AI 키워드] 키워드를 만들지 못했습니다(응답 확인). "
+                      "라벨 없이 계속합니다.", flush=True)
 
     with tempfile.TemporaryDirectory(prefix="finalize_") as tmp:
         ts_files = []

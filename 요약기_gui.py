@@ -184,6 +184,7 @@ STRINGS = {
         "msg_error_body": "처리 중 오류가 발생했습니다.\n로그를 확인하세요.",
         "msg_need_video": "영상 파일을 선택하세요.",
         "msg_need_srt": "자막 파일을 선택하세요.\n(자막 새겨넣기를 끄면 자막 없이 진행됩니다.)",
+        "msg_need_srt_labels": "AI 자동 키워드를 쓰려면 자막(SRT) 파일이 필요합니다.\nAI가 자막 내용을 분석해 키워드를 만들기 때문입니다.",
         "msg_need_thumb": "썸네일 이미지를 선택하세요.\n(인트로/표지 옵션을 모두 끄면 썸네일 없이 진행됩니다.)",
         "msg_need_out": "출력 파일 경로를 지정하세요.",
         "msg_final_done": "완성 영상이 저장되었습니다.\n\n{path}",
@@ -319,6 +320,7 @@ STRINGS = {
         "msg_error_body": "An error occurred during processing.\nCheck the log.",
         "msg_need_video": "Please select a video file.",
         "msg_need_srt": "Please select a subtitle file.\n(Turn off subtitle burning to proceed without subtitles.)",
+        "msg_need_srt_labels": "Auto keywords need a subtitle (SRT) file.\nThe AI reads the subtitle content to make the keywords.",
         "msg_need_thumb": "Please select a thumbnail image.\n(Turn off both intro/cover options to proceed without a thumbnail.)",
         "msg_need_out": "Please specify an output file path.",
         "msg_final_done": "Final video saved.\n\n{path}",
@@ -1159,6 +1161,9 @@ def build_finalize_tab(nb):
         if autolabels_var.get():
             if not gkey:
                 messagebox.showwarning(_t("msg_input_error"), _t("gemini_key"))
+                return
+            if not srt:
+                messagebox.showwarning(_t("msg_input_error"), _t("msg_need_srt_labels"))
                 return
             save_gemini_key(gkey)
             cmd += ["--auto-labels", "--gemini-key", gkey]

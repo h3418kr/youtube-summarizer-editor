@@ -827,45 +827,192 @@ SFX_SPECS = {
 }
 
 
+def _detect_faces_ultraface(sess, input_name, frame_files, frame_dir, W, H):
+    """UltraFace 모델로 얼굴 감지."""
+    all_boxes = []
+    for frame_idx, frame_file in enumerate(frame_files):
+        frame_path = os.path.join(frame_dir, frame_file)
+        img = Image.open(frame_path).convert('RGB')
+        model_w, model_h = 320, 240
+        img_resized = img.resize((model_w, model_h))
+        img_array = np.array(img_resized, dtype=np.float32)
+        img_array = (img_array - 127.0) / 128.0
+        img_array = np.transpose(img_array, (2, 0, 1))
+        img_array = np.expand_dims(img_array, 0)
+        outputs = sess.run(None, {input_name: img_array})
+        scores = outputs[0]
+        boxes = outputs[1]
+        scores_reshaped = scores[0, :, 1]
+        for j in range(len(scores_reshaped)):
+            if scores_reshaped[j] > 0.7:
+                x1, y1, x2, y2 = boxes[0, j]
+                x1, y1, x2, y2 = int(x1 * W), int(y1 * H), int(x2 * W), int(y2 * H)
+                all_boxes.append((x1, y1, x2, y2, float(scores_reshaped[j]), frame_idx))
+    return all_boxes
+
+
+def _detect_faces_anime(sess, input_name, frame_files, frame_dir, W, H):
+    """Anime face YOLO 모델로 얼굴 감지. 출력: (1, 5, 8400) -> [x,y,w,h,conf] x 8400"""
+    all_boxes = []
+    yolo_size = 640
+    for frame_idx, frame_file in enumerate(frame_files):
+        frame_path = os.path.join(frame_dir, frame_file)
+        img = Image.open(frame_path).convert('RGB')
+        orig_w, orig_h = img.size
+        scale = min(yolo_size / orig_w, yolo_size / orig_h)
+        new_w, new_h = int(orig_w * scale), int(orig_h * scale)
+        img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        img_array = np.full((yolo_size, yolo_size, 3), 114, dtype=np.uint8)
+        pad_x, pad_y = (yolo_size - new_w) // 2, (yolo_size - new_h) // 2
+        img_array[pad_y:pad_y+new_h, pad_x:pad_x+new_w] = np.array(img_resized)
+        img_array = img_array.astype(np.float32) / 255.0
+        img_array = np.transpose(img_array, (2, 0, 1))
+        img_array = np.expand_dims(img_array, 0)
+        outputs = sess.run(None, {input_name: img_array})
+        # 출력 shape: (1, 5, 8400) -> [x, y, w, h, conf]
+        pred = outputs[0][0]  # (5, 8400)
+        for i in range(pred.shape[1]):
+            conf = pred[4, i]
+            if conf > 0.15:
+                x, y, w, h = pred[0, i], pred[1, i], pred[2, i], pred[3, i]
+                # letterbox 역변환
+                x, y = (x - pad_x) / scale, (y - pad_y) / scale
+                w, h = w / scale, h / scale
+                x1, y1, x2, y2 = int(max(0, x - w/2)), int(max(0, y - h/2)), int(min(W, x + w/2)), int(min(H, y + h/2))
+                if x1 < x2 and y1 < y2:
+                    all_boxes.append((x1, y1, x2, y2, float(conf), frame_idx))
+    return all_boxes
+
+
+def _cluster_and_crop_faces(all_boxes, frame_idx, W, H, expand_scale_w=2.2, expand_scale_h=2.0):
+    """감지된 얼굴 박스를 클러스터링하고 크롭 영역 계산."""
+    from collections import defaultdict
+
+    def nms_boxes_per_frame(boxes, iou_thresh=0.4):
+        if not boxes:
+            return []
+        frames_dict = defaultdict(list)
+        for box in boxes:
+            frame_idx = box[5] if len(box) >= 6 else 0
+            frames_dict[frame_idx].append(box)
+        keep = []
+        for frame_id in sorted(frames_dict.keys()):
+            frame_boxes = frames_dict[frame_id]
+            frame_boxes_sorted = sorted(frame_boxes, key=lambda b: -b[4])
+            frame_keep = []
+            for box in frame_boxes_sorted:
+                keep_this = True
+                for kept_box in frame_keep:
+                    x1a, y1a, x2a, y2a = box[:4]
+                    x1b, y1b, x2b, y2b = kept_box[:4]
+                    inter_x1, inter_y1 = max(x1a, x1b), max(y1a, y1b)
+                    inter_x2, inter_y2 = min(x2a, x2b), min(y2a, y2b)
+                    if inter_x2 > inter_x1 and inter_y2 > inter_y1:
+                        inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
+                        area_a, area_b = (x2a - x1a) * (y2a - y1a), (x2b - x1b) * (y2b - y1b)
+                        union_area = area_a + area_b - inter_area
+                        iou = inter_area / union_area if union_area > 0 else 0
+                        if iou > iou_thresh:
+                            keep_this = False
+                            break
+                if keep_this:
+                    frame_keep.append(box)
+            keep.extend(frame_keep)
+        return keep
+
+    nms_boxes_result = nms_boxes_per_frame(all_boxes)
+    if not nms_boxes_result:
+        return None
+
+    clusters, assigned = [], set()
+    for i, box in enumerate(nms_boxes_result):
+        if i in assigned:
+            continue
+        x1, y1, x2, y2 = box[:4]
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        cluster = [i]
+        assigned.add(i)
+        threshold = W * 0.08
+        for j in range(i + 1, len(nms_boxes_result)):
+            if j in assigned:
+                continue
+            x1j, y1j, x2j, y2j = nms_boxes_result[j][:4]
+            cxj, cyj = (x1j + x2j) / 2, (y1j + y2j) / 2
+            dist = ((cx - cxj) ** 2 + (cy - cyj) ** 2) ** 0.5
+            if dist <= threshold:
+                cluster.append(j)
+                assigned.add(j)
+        clusters.append(cluster)
+
+    cluster_info = []
+    for cluster_indices in clusters:
+        unique_frames = set()
+        for idx in cluster_indices:
+            if len(nms_boxes_result[idx]) >= 6:
+                unique_frames.add(nms_boxes_result[idx][5])
+        cluster_info.append({'indices': cluster_indices, 'frame_count': len(unique_frames), 'unique_frames': unique_frames})
+
+    sample_frame_count = frame_idx + 1
+    threshold_frames = int(sample_frame_count * 0.6)
+    qualified = [c for c in cluster_info if c['frame_count'] >= threshold_frames]
+
+    if not qualified:
+        return None
+
+    best_cluster = max(qualified, key=lambda c: len(c['indices']))
+    selected_boxes = np.array([nms_boxes_result[idx][:4] for idx in best_cluster['indices']], dtype=np.float32)
+    face_x1, face_y1, face_x2, face_y2 = int(np.median(selected_boxes[:, 0])), int(np.median(selected_boxes[:, 1])), int(np.median(selected_boxes[:, 2])), int(np.median(selected_boxes[:, 3]))
+    face_w, face_h = face_x2 - face_x1, face_y2 - face_y1
+
+    crop_w, crop_h = int(face_w * expand_scale_w), int(face_h * expand_scale_h)
+    crop_x, crop_y = face_x1 + (face_w - crop_w) // 2, face_y1 - int(crop_h * 0.18)
+    crop_x, crop_y = max(0, min(crop_x, W - crop_w)), max(0, min(crop_y, H - crop_h))
+
+    aspect_ratio = 16.0 / 9.0
+    current_ratio = crop_w / crop_h if crop_h > 0 else 1
+    if current_ratio < aspect_ratio:
+        new_w = int(crop_h * aspect_ratio)
+        crop_x -= (new_w - crop_w) // 2
+        crop_w = new_w
+    else:
+        new_h = int(crop_w / aspect_ratio)
+        crop_y -= (new_h - crop_h) // 2
+        crop_h = new_h
+
+    crop_x, crop_y = max(0, min(crop_x, W - crop_w)), max(0, min(crop_y, H - crop_h))
+    crop_w, crop_h = min(crop_w, W - crop_x), min(crop_h, H - crop_y)
+
+    inset_w, inset_h = int(crop_w * 0.92), int(crop_h * 0.92)
+    crop_x += (crop_w - inset_w) // 2
+    crop_y += (crop_h - inset_h) // 2
+    crop_w, crop_h = inset_w, inset_h
+
+    return (crop_x, crop_y, crop_w, crop_h)
+
+
 def detect_cam_region(video_path: str, tmpdir: str):
-    """영상에서 고정 캠(얼굴) 위치를 자동 감지. 성공 시 (x,y,w,h), 실패 시 None."""
+    """영상에서 고정 캠(얼굴) 위치를 자동 감지. UltraFace 후 애니 모델 시도."""
     if not _ONNX_AVAILABLE:
         return None
 
-    # 모델 경로 찾기
     base = os.path.dirname(os.path.abspath(__file__))
-    model_paths = [
-        os.path.join(base, "models", "ultraface-rfb-320.onnx"),
-        os.path.join(base, "assets", "ultraface-rfb-320.onnx"),
-    ]
-    model_path = None
-    for p in model_paths:
-        if os.path.isfile(p):
-            model_path = p
-            break
+    ultraface_paths = [os.path.join(base, "models", "ultraface-rfb-320.onnx"), os.path.join(base, "assets", "ultraface-rfb-320.onnx")]
+    anime_model_paths = [os.path.join(base, "assets", "animeface.onnx"), os.path.join(base, "models", "animeface.onnx")]
 
-    if not model_path:
+    ultraface_path = next((p for p in ultraface_paths if os.path.isfile(p)), None)
+    anime_model_path = next((p for p in anime_model_paths if os.path.isfile(p)), None)
+
+    if not ultraface_path and not anime_model_path:
         print("  (얼굴 감지 모델 없음, 캠 자동 감지 비활성화)")
         return None
 
     try:
-        # 해상도 취득
         W, H = get_media_size(video_path)
-
-        # 12프레임 샘플링 (앞뒤 5% 제외)
         dur = get_duration(video_path)
-        start_t = dur * 0.05
-        end_t = dur * 0.95
-        sample_times = np.linspace(start_t, end_t, 12)
+        start_t, end_t = dur * 0.05, dur * 0.95
 
-        # 프레임 추출
         frame_dir = os.path.join(tmpdir, "face_detect_frames")
         os.makedirs(frame_dir, exist_ok=True)
-
-        # 12프레임을 균등하게 샘플링
-        fps_val = 30  # 가정: 30fps 영상
-        frame_interval = int((end_t - start_t) * fps_val / 11)
-        start_frame = int(start_t * fps_val)
 
         cmd = [
             "ffmpeg", "-i", video_path,
@@ -875,209 +1022,42 @@ def detect_cam_region(video_path: str, tmpdir: str):
         ]
         run_ffmpeg(cmd, label="(얼굴감지-프레임추출)")
 
-        # 추출된 프레임 모음
         frame_files = sorted([f for f in os.listdir(frame_dir) if f.endswith('.png')])
         if not frame_files:
             return None
 
-        # ONNX 세션 생성
-        sess = onnxruntime.InferenceSession(model_path, providers=['CPUExecutionProvider'])
-        input_name = sess.get_inputs()[0].name
+        # 1단계: UltraFace 시도
+        if ultraface_path:
+            try:
+                sess = onnxruntime.InferenceSession(ultraface_path, providers=['CPUExecutionProvider'])
+                input_name = sess.get_inputs()[0].name
+                all_boxes = _detect_faces_ultraface(sess, input_name, frame_files, frame_dir, W, H)
+                if all_boxes:
+                    result = _cluster_and_crop_faces(all_boxes, len(frame_files) - 1, W, H, expand_scale_w=2.2, expand_scale_h=2.0)
+                    if result:
+                        crop_x, crop_y, crop_w, crop_h = result
+                        print(f"  캠 자동 감지: x={crop_x}, y={crop_y}, {crop_w}x{crop_h}")
+                        return result
+            except Exception as e:
+                print(f"  (UltraFace 오류: {e})")
 
-        all_boxes = []  # (x1, y1, x2, y2, score, frame_idx)
+        # 2단계: 애니 모델 시도
+        if anime_model_path:
+            try:
+                sess = onnxruntime.InferenceSession(anime_model_path, providers=['CPUExecutionProvider'])
+                input_name = sess.get_inputs()[0].name
+                all_boxes = _detect_faces_anime(sess, input_name, frame_files, frame_dir, W, H)
+                if all_boxes:
+                    result = _cluster_and_crop_faces(all_boxes, len(frame_files) - 1, W, H, expand_scale_w=1.6, expand_scale_h=1.6)
+                    if result:
+                        crop_x, crop_y, crop_w, crop_h = result
+                        print(f"  캠 자동 감지(버튜버): x={crop_x}, y={crop_y}, {crop_w}x{crop_h}")
+                        return result
+            except Exception as e:
+                print(f"  (애니 얼굴 감지 오류: {e})")
 
-        for frame_idx, frame_file in enumerate(frame_files):
-            frame_path = os.path.join(frame_dir, frame_file)
-            img = Image.open(frame_path).convert('RGB')
-
-            # 1920x1080 기준으로 RFB-320 입력 준비
-            # 모델은 320x240 입력을 받음
-            model_w, model_h = 320, 240
-            img_resized = img.resize((model_w, model_h))
-
-            # (img - 127) / 128 정규화
-            img_array = np.array(img_resized, dtype=np.float32)
-            img_array = (img_array - 127.0) / 128.0
-
-            # NCHW 포맷
-            img_array = np.transpose(img_array, (2, 0, 1))
-            img_array = np.expand_dims(img_array, 0)
-
-            # 추론
-            outputs = sess.run(None, {input_name: img_array})
-            scores = outputs[0]  # (1, 4420, 2)
-            boxes = outputs[1]   # (1, 4420, 4) - 정규화 x1y1x2y2
-
-            # score > 0.7인 얼굴 박스 수집 (원본 해상도로 환산)
-            scores_reshaped = scores[0, :, 1]  # 얼굴 점수 (배경 점수 제외)
-            for j in range(len(scores_reshaped)):
-                if scores_reshaped[j] > 0.7:
-                    # 정규화된 좌표를 원본 해상도로
-                    x1, y1, x2, y2 = boxes[0, j]
-                    x1 = int(x1 * W)
-                    y1 = int(y1 * H)
-                    x2 = int(x2 * W)
-                    y2 = int(y2 * H)
-                    all_boxes.append((x1, y1, x2, y2, float(scores_reshaped[j]), frame_idx))
-
-        if not all_boxes:
-            return None
-
-        # 프레임별 NMS (각 프레임 내 중복 제거)
-        def nms_boxes_per_frame(boxes, iou_thresh=0.4):
-            if not boxes:
-                return []
-            # boxes를 frame_idx별로 그룹화
-            from collections import defaultdict
-            frames_dict = defaultdict(list)
-            for box in boxes:
-                frame_idx = box[5] if len(box) >= 6 else 0
-                frames_dict[frame_idx].append(box)
-
-            # 각 프레임별로 NMS 적용
-            keep = []
-            for frame_id in sorted(frames_dict.keys()):
-                frame_boxes = frames_dict[frame_id]
-                frame_boxes_sorted = sorted(frame_boxes, key=lambda b: -b[4])
-                frame_keep = []
-                for box in frame_boxes_sorted:
-                    keep_this = True
-                    for kept_box in frame_keep:
-                        x1a, y1a, x2a, y2a = box[:4]
-                        x1b, y1b, x2b, y2b = kept_box[:4]
-                        inter_x1 = max(x1a, x1b)
-                        inter_y1 = max(y1a, y1b)
-                        inter_x2 = min(x2a, x2b)
-                        inter_y2 = min(y2a, y2b)
-                        if inter_x2 > inter_x1 and inter_y2 > inter_y1:
-                            inter_area = (inter_x2 - inter_x1) * (inter_y2 - inter_y1)
-                            area_a = (x2a - x1a) * (y2a - y1a)
-                            area_b = (x2b - x1b) * (y2b - y1b)
-                            union_area = area_a + area_b - inter_area
-                            iou = inter_area / union_area if union_area > 0 else 0
-                            if iou > iou_thresh:
-                                keep_this = False
-                                break
-                    if keep_this:
-                        frame_keep.append(box)
-                keep.extend(frame_keep)
-            return keep
-
-        nms_boxes_result = nms_boxes_per_frame(all_boxes)
-
-        # 고정 위치 클러스터링: 공간 + 시간 필터
-        if not nms_boxes_result:
-            return None
-
-        # 클러스터링: 중심 거리 W*0.08 이내를 같은 클러스터로
-        clusters = []
-        assigned = set()
-
-        for i, box in enumerate(nms_boxes_result):
-            if i in assigned:
-                continue
-            x1, y1, x2, y2 = box[:4]
-            cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
-            cluster = [i]
-            assigned.add(i)
-
-            threshold = W * 0.08
-            for j in range(i + 1, len(nms_boxes_result)):
-                if j in assigned:
-                    continue
-                x1j, y1j, x2j, y2j = nms_boxes_result[j][:4]
-                cxj, cyj = (x1j + x2j) / 2, (y1j + y2j) / 2
-                dist = ((cx - cxj) ** 2 + (cy - cyj) ** 2) ** 0.5
-                if dist <= threshold:
-                    cluster.append(j)
-                    assigned.add(j)
-
-            clusters.append(cluster)
-
-        # 각 클러스터의 등장 프레임 수 계산
-        cluster_info = []
-        for cluster_indices in clusters:
-            unique_frames = set()
-            for idx in cluster_indices:
-                if len(nms_boxes_result[idx]) >= 6:
-                    unique_frames.add(nms_boxes_result[idx][5])  # frame_idx
-            cluster_info.append({
-                'indices': cluster_indices,
-                'frame_count': len(unique_frames),
-                'unique_frames': unique_frames
-            })
-
-        # 샘플 프레임 수의 60% 이상 + 가장 큰 클러스터 선택
-        sample_frame_count = frame_idx + 1
-        threshold_frames = int(sample_frame_count * 0.6)
-        qualified = [c for c in cluster_info if c['frame_count'] >= threshold_frames]
-
-        if not qualified:
-            print("  (고정 캠 판정 실패 - 얼굴이 일정 위치에 반복 등장하지 않음)")
-            return None
-
-        # 가장 큰 클러스터(가장 많은 박스를 포함)를 선택
-        best_cluster = max(qualified, key=lambda c: len(c['indices']))
-
-        # 디버그: 클러스터 정보 출력
-        print(f"  [클러스터] 중심: ({int((nms_boxes_result[best_cluster['indices'][0]][0] + nms_boxes_result[best_cluster['indices'][0]][2]) / 2)}, "
-              f"{int((nms_boxes_result[best_cluster['indices'][0]][1] + nms_boxes_result[best_cluster['indices'][0]][3]) / 2)}), "
-              f"등장 프레임 수: {best_cluster['frame_count']}/{sample_frame_count}")
-
-        # 선택된 클러스터의 박스들만으로 중앙값 계산
-        selected_boxes = np.array([nms_boxes_result[idx][:4] for idx in best_cluster['indices']], dtype=np.float32)
-        face_x1 = int(np.median(selected_boxes[:, 0]))
-        face_y1 = int(np.median(selected_boxes[:, 1]))
-        face_x2 = int(np.median(selected_boxes[:, 2]))
-        face_y2 = int(np.median(selected_boxes[:, 3]))
-
-        face_w = face_x2 - face_x1
-        face_h = face_y2 - face_y1
-
-        # 크롭 영역 계산: 가로 2.2배, 세로 2.0배 (얼굴이 상단 1/3)
-        crop_w = int(face_w * 2.2)
-        crop_h = int(face_h * 2.0)
-
-        # 중심 기준, 세로는 아래쪽으로 더 확장
-        # (위 여백을 줄여야 캠 상단 경계를 안 넘는다 - 캠 아래쪽은 몸통이라 안전)
-        crop_x = face_x1 + (face_w - crop_w) // 2
-        crop_y = face_y1 - int(crop_h * 0.18)
-
-        # 화면 경계로 클램프
-        crop_x = max(0, min(crop_x, W - crop_w))
-        crop_y = max(0, min(crop_y, H - crop_h))
-
-        # 16:9 비율 조정 (짧은 쪽을 늘림)
-        aspect_ratio = 16.0 / 9.0
-        current_ratio = crop_w / crop_h if crop_h > 0 else 1
-
-        if current_ratio < aspect_ratio:
-            # 가로가 부족 -> 가로 늘림
-            new_w = int(crop_h * aspect_ratio)
-            crop_x -= (new_w - crop_w) // 2
-            crop_w = new_w
-        else:
-            # 세로가 부족 -> 세로 늘림
-            new_h = int(crop_w / aspect_ratio)
-            crop_y -= (new_h - crop_h) // 2
-            crop_h = new_h
-
-        # 다시 클램프
-        crop_x = max(0, min(crop_x, W - crop_w))
-        crop_y = max(0, min(crop_y, H - crop_h))
-        crop_w = min(crop_w, W - crop_x)
-        crop_h = min(crop_h, H - crop_y)
-
-        # 확장 영역이 캠 경계를 살짝 넘어 게임 화면이 새어 들어올 수 있어
-        # 최종 크롭을 중앙 기준 8% 인셋 (같은 비율로 줄여 16:9 유지)
-        inset_w = int(crop_w * 0.92)
-        inset_h = int(crop_h * 0.92)
-        crop_x += (crop_w - inset_w) // 2
-        crop_y += (crop_h - inset_h) // 2
-        crop_w, crop_h = inset_w, inset_h
-
-        print(f"  캠 자동 감지: x={crop_x}, y={crop_y}, {crop_w}x{crop_h}")
-        return (crop_x, crop_y, crop_w, crop_h)
+        print("  (고정 캠 판정 실패 - 얼굴이 일정 위치에 반복 등장하지 않음)")
+        return None
 
     except Exception as e:
         print(f"  (자동 감지 오류: {e})")

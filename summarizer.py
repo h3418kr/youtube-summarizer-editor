@@ -1107,7 +1107,7 @@ def cut_and_concat(video_path: str, segments: List[Tuple[float, float]], out_pat
     cam_region: "br"(기본) 등 프리셋 또는 "x,y,w,h" 픽셀 문자열 (closeup/punchins일 때만 사용)
     closeup_sec: closeup 브리지/punchins 길이 (기본 1.5초)
     closeup_every: closeup 브리지를 몇 번의 전환마다 넣을지 (기본 1=매번)
-    punchins: {구간인덱스: 펀치인시작초(원본기준)} dict, 각 구간에서 펀치인 시작 시점 저장
+    punchins: {구간인덱스: [펀치인시작초, ...]} dict, 각 구간에서 펀치인 시작 시점(들) 저장. 리스트 형식으로 다중 지원
     """
     has_video_fx = transition_style in ("black", "white", "closeup")
     sfx_path, sfx_len = make_sfx(tmpdir, sfx_kind)
@@ -1191,28 +1191,67 @@ def cut_and_concat(video_path: str, segments: List[Tuple[float, float]], out_pat
             duration >= closeup_sec * 3 and i % closeup_every == 0
         )
 
-        # 펀치인 여부
-        punchin_time = punchins.get(i)
-        has_punchin = punchin_time is not None
+        # 펀치인 여부 (리스트 형식 다중 지원)
+        punchin_times = punchins.get(i, [])
+        has_punchin = len(punchin_times) > 0
 
         if do_closeup_bridge or has_punchin:
             # 펀치인과 closeup 브리지 모두 있을 수 있음
             if has_punchin:
-                # punchin_time은 원본 기준, punchin_end도 원본 기준으로 계산
-                punchin_end = punchin_time + closeup_sec
+                # 펀치인 시간 유효성 검사 및 필터링
+                # 1. [start+1, end-closeup_sec-(브리지 있으면 closeup_sec+1, 없으면 1)] 범위
+                min_punchin = start + 1
+                max_punchin = end - closeup_sec - (closeup_sec + 1 if do_closeup_bridge else 1)
 
-                # part1: start ~ punchin_time (원본)
-                parts_to_encode.append((start, punchin_time, "normal"))
-                # part2: punchin_time ~ punchin_time+closeup_sec (펀치인 캠크롭)
-                parts_to_encode.append((punchin_time, punchin_end, "punchin_bridge"))
-                # part3: punchin_time+closeup_sec ~ end (원본)
-                if punchin_end < end:
-                    if do_closeup_bridge and (end - punchin_end) >= closeup_sec:
-                        # closeup 브리지도 있으면 마지막에 분리
-                        parts_to_encode.append((punchin_end, end - closeup_sec, "normal"))
+                valid_punchins = []
+                for pt in punchin_times:
+                    if pt < min_punchin or pt > max_punchin:
+                        print(f"  (펀치인 {pt:.1f}s - 구간{i} 범위 초과 [{min_punchin:.1f}, {max_punchin:.1f}] 제외)")
+                        continue
+                    valid_punchins.append(pt)
+
+                # 2. 인접 펀치인과 간격이 closeup_sec+1 미만이면 뒤의 것 제외
+                filtered_punchins = []
+                for idx, pt in enumerate(valid_punchins):
+                    skip = False
+                    for prev_pt in filtered_punchins:
+                        if pt - prev_pt < closeup_sec + 1:
+                            print(f"  (펀치인 {pt:.1f}s - 직전 펀치인과 간격 부족({pt - prev_pt:.1f}s < {closeup_sec + 1:.1f}s) 제외)")
+                            skip = True
+                            break
+                    if not skip:
+                        filtered_punchins.append(pt)
+
+                # 유효한 펀치인들로 구간 분할: [normal][punch][normal][punch]...[normal(+bridge)]
+                if filtered_punchins:
+                    curr_time = start
+                    for pidx, pt in enumerate(filtered_punchins):
+                        punchin_end = pt + closeup_sec
+                        if punchin_end > end:
+                            punchin_end = end
+
+                        # normal part (if gap exists)
+                        if pt > curr_time:
+                            parts_to_encode.append((curr_time, pt, "normal"))
+
+                        # punchin part
+                        parts_to_encode.append((pt, punchin_end, "punchin_bridge"))
+                        curr_time = punchin_end
+
+                    # 남은 부분 + closeup 브리지
+                    if curr_time < end:
+                        if do_closeup_bridge and (end - curr_time) >= closeup_sec:
+                            parts_to_encode.append((curr_time, end - closeup_sec, "normal"))
+                            parts_to_encode.append((end - closeup_sec, end, "bridge"))
+                        else:
+                            parts_to_encode.append((curr_time, end, "normal"))
+                else:
+                    # 유효한 펀치인이 없으면 일반 처리
+                    if do_closeup_bridge:
+                        parts_to_encode.append((start, end - closeup_sec, "normal"))
                         parts_to_encode.append((end - closeup_sec, end, "bridge"))
                     else:
-                        parts_to_encode.append((punchin_end, end, "normal"))
+                        parts_to_encode.append((start, end, "normal"))
             elif do_closeup_bridge:
                 # closeup 브리지만 있음
                 parts_to_encode.append((start, end - closeup_sec, "normal"))
@@ -1226,7 +1265,9 @@ def cut_and_concat(video_path: str, segments: List[Tuple[float, float]], out_pat
             if part_type == "bridge":
                 seg_path = os.path.join(tmpdir, f"seg_{i:04d}_bridge.ts")
             elif part_type == "punchin_bridge":
-                seg_path = os.path.join(tmpdir, f"seg_{i:04d}_punchin.ts")
+                # 한 구간에 펀치인이 여러 개일 수 있으므로 part_idx로 파일명을 구분
+                # (구분하지 않으면 뒤 펀치인이 앞 파일을 덮어써 같은 장면이 반복된다)
+                seg_path = os.path.join(tmpdir, f"seg_{i:04d}_punchin{part_idx}.ts")
             else:
                 seg_path = os.path.join(tmpdir, f"seg_{i:04d}.ts") if part_idx == 0 else os.path.join(tmpdir, f"seg_{i:04d}_part{part_idx}.ts")
 
@@ -1317,6 +1358,64 @@ def cut_and_concat(video_path: str, segments: List[Tuple[float, float]], out_pat
     )
 
 
+def parse_punchin_times(times_str: str) -> List[float]:
+    """시간 문자열을 초 리스트로 파싱.
+
+    형식: "12:30, 45:02, 1:03:11" 등 쉼표로 구분.
+    각 항목은 h:mm:ss / mm:ss / ss 지원. 잘못된 항목은 로그 후 무시.
+    반환: 오름차순 정렬된 초 리스트.
+    """
+    if not times_str or not times_str.strip():
+        return []
+
+    result = []
+    for item in times_str.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            parts = item.split(":")
+            parts_float = [float(p) for p in parts]
+            if len(parts_float) == 1:
+                t = parts_float[0]
+            elif len(parts_float) == 2:
+                t = parts_float[0] * 60 + parts_float[1]
+            elif len(parts_float) == 3:
+                t = parts_float[0] * 3600 + parts_float[1] * 60 + parts_float[2]
+            else:
+                print(f"  (펀치인 시간 형식 오류 무시: {item})")
+                continue
+            result.append(t)
+        except (ValueError, IndexError) as e:
+            print(f"  (펀치인 시간 파싱 오류 무시: {item} - {e})")
+            continue
+
+    result.sort()
+    return result
+
+
+def map_punchin_times(times: List[float], segments: List[Tuple[float, float]]) -> dict:
+    """각 시간을 포함하는 구간에 매핑.
+
+    반환: {구간인덱스: [시간1, 시간2, ...]}
+    어느 구간에도 포함되지 않으면 로그 후 제외.
+    """
+    result = {}
+    for time_sec in times:
+        found = False
+        for i, (start, end) in enumerate(segments):
+            if start <= time_sec < end:
+                if i not in result:
+                    result[i] = []
+                result[i].append(time_sec)
+                found = True
+                break
+        if not found:
+            print(f"  펀치인 {time_sec:.1f}s - 하이라이트 구간에 포함되지 않아 생략")
+
+    return result
+
+
 def compute_punchin_times(video_path: str, segments: List[Tuple[float, float]], level: str,
                           tmpdir: str, closeup_sec: float = 1.5) -> dict:
     """구간 중간의 오디오 에너지 피크에서 펀치인 시점을 고른다.
@@ -1398,14 +1497,20 @@ def compute_punchin_times(video_path: str, segments: List[Tuple[float, float]], 
     cutoff_idx = max(1, int(len(peaks_with_energy) * ratio))
     selected_peaks = peaks_with_energy[:cutoff_idx]
 
-    # 구간 인덱스로 정렬
+    # 구간 인덱스로 정렬, 리스트 형식으로 저장
     for seg_idx, peak_time, _ in selected_peaks:
-        punchin_times[seg_idx] = peak_time
+        if seg_idx not in punchin_times:
+            punchin_times[seg_idx] = []
+        punchin_times[seg_idx].append(peak_time)
 
     # 로그 출력
     if punchin_times:
-        times_str = ", ".join(f"{t:.1f}s" for t in sorted(punchin_times.values()))
-        print(f"  펀치인 {len(punchin_times)}곳: {times_str}")
+        all_times = []
+        for times_list in punchin_times.values():
+            all_times.extend(times_list)
+        times_str = ", ".join(f"{t:.1f}s" for t in sorted(all_times))
+        total_count = len(all_times)
+        print(f"  펀치인 {total_count}곳: {times_str}")
 
     return punchin_times
 
@@ -1575,6 +1680,9 @@ def main():
     parser.add_argument("--punchin", default="none",
                         choices=["none", "low", "mid", "high"],
                         help="구간 중간 캠 강조(펀치인): none(끔) / low(적게) / mid(보통) / high(많이). 기본 none")
+    parser.add_argument("--punchin-times", default="",
+                        help="펀치인 시간 직접 지정 (선택). 예: 12:30, 45:02, 1:03:11 (쉼표 구분, 원본 영상 기준). "
+                             "자동(--punchin level)과 병합됨 - 같은 구간에서 3초 이내 중복은 제거")
     parser.add_argument("--no-transition", dest="no_transition", action="store_true",
                         help="화면 전환 효과와 전환 효과음을 모두 끕니다 "
                              "(--transition-style none --sfx none 과 동일)")
@@ -1703,11 +1811,53 @@ def main():
         # Build raw summary first (without jump-cut)
         summary_raw = os.path.join(tmpdir, "summary_raw.mp4")
 
-        # compute_punchin_times if needed
+        # compute_punchin_times if needed + merge with manual times
         punchins = {}
+        manual_punchins = {}
+
+        # 자동 펀치인
         if args.punchin != "none":
             punchins = compute_punchin_times(video_path, segments, args.punchin, tmpdir,
                                              closeup_sec=args.closeup_sec)
+
+        # 수동 펀치인 파싱 및 매핑
+        if args.punchin_times.strip():
+            manual_times = parse_punchin_times(args.punchin_times)
+            manual_punchins = map_punchin_times(manual_times, segments)
+
+        # 병합: 수동 시간과 자동 시간이 3초 이내로 겹치면 자동 제거
+        if manual_punchins and punchins:
+            for seg_idx in manual_punchins:
+                if seg_idx in punchins:
+                    # 같은 구간에 수동과 자동이 모두 있을 때
+                    auto_times = punchins[seg_idx]
+                    manual_times = manual_punchins[seg_idx]
+                    filtered_auto = []
+                    for at in auto_times:
+                        keep = True
+                        for mt in manual_times:
+                            if abs(at - mt) <= 3.0:
+                                keep = False
+                                break
+                        if keep:
+                            filtered_auto.append(at)
+                    punchins[seg_idx] = filtered_auto
+                    if not filtered_auto:
+                        del punchins[seg_idx]
+
+        # 수동 + 자동 통합
+        for seg_idx, times in manual_punchins.items():
+            if seg_idx not in punchins:
+                punchins[seg_idx] = times
+            else:
+                punchins[seg_idx].extend(times)
+                punchins[seg_idx].sort()
+
+        # 수동 펀치인 로그
+        if manual_punchins:
+            total_manual = sum(len(times) for times in manual_punchins.values())
+            print(f"  펀치인(수동) {total_manual}곳: " +
+                  ", ".join(f"{t:.1f}s" for times in manual_punchins.values() for t in sorted(times)))
 
         cut_and_concat(video_path, segments, summary_raw, tmpdir,
                        transition_style=args.transition_style, sfx_kind=args.sfx_kind,

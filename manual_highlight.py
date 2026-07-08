@@ -133,6 +133,9 @@ def main():
     parser.add_argument("--punchin", default="none",
                         choices=["none", "low", "mid", "high"],
                         help="구간 중간 캠 강조(펀치인): none(끔) / low(적게) / mid(보통) / high(많이). 기본 none")
+    parser.add_argument("--punchin-times", default="",
+                        help="펀치인 시간 직접 지정 (선택). 예: 12:30, 45:02, 1:03:11 (쉼표 구분, 원본 영상 기준). "
+                             "자동(--punchin level)과 병합됨 - 같은 구간에서 3초 이내 중복은 제거")
     parser.add_argument("--subtitles", action="store_true",
                         help="완성 영상에서 자막(SRT) 자동 생성 (Whisper)")
     parser.add_argument("--model", default="small",
@@ -239,11 +242,54 @@ def main():
         # 소제목이 있으면 먼저 원본 컷을 임시로 만들고 오버레이를 입힌다.
         base_video = os.path.join(tmpdir, "highlight_raw.mp4") if use_overlay else out_video
 
-        # compute_punchin_times if needed
+        # compute_punchin_times if needed + merge with manual times
+        from summarizer import parse_punchin_times, map_punchin_times
+
         punchins = {}
+        manual_punchins = {}
+
+        # 자동 펀치인
         if args.punchin != "none":
             punchins = compute_punchin_times(args.video, segments, args.punchin, tmpdir,
                                              closeup_sec=args.closeup_sec)
+
+        # 수동 펀치인 파싱 및 매핑
+        if args.punchin_times.strip():
+            manual_times = parse_punchin_times(args.punchin_times)
+            manual_punchins = map_punchin_times(manual_times, segments)
+
+        # 병합: 수동 시간과 자동 시간이 3초 이내로 겹치면 자동 제거
+        if manual_punchins and punchins:
+            for seg_idx in manual_punchins:
+                if seg_idx in punchins:
+                    auto_times = punchins[seg_idx]
+                    manual_times = manual_punchins[seg_idx]
+                    filtered_auto = []
+                    for at in auto_times:
+                        keep = True
+                        for mt in manual_times:
+                            if abs(at - mt) <= 3.0:
+                                keep = False
+                                break
+                        if keep:
+                            filtered_auto.append(at)
+                    punchins[seg_idx] = filtered_auto
+                    if not filtered_auto:
+                        del punchins[seg_idx]
+
+        # 수동 + 자동 통합
+        for seg_idx, times in manual_punchins.items():
+            if seg_idx not in punchins:
+                punchins[seg_idx] = times
+            else:
+                punchins[seg_idx].extend(times)
+                punchins[seg_idx].sort()
+
+        # 수동 펀치인 로그
+        if manual_punchins:
+            total_manual = sum(len(times) for times in manual_punchins.values())
+            print(f"  펀치인(수동) {total_manual}곳: " +
+                  ", ".join(f"{t:.1f}s" for times in manual_punchins.values() for t in sorted(times)))
 
         cut_and_concat(args.video, segments, base_video, tmpdir,
                        transition_style=args.transition_style,

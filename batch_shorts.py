@@ -359,6 +359,8 @@ def main():
                         help="화면 채팅창 자동 감지 & 반응 반영 (채팅이 없으면 자동 무시됨)")
     parser.add_argument("--chat-region", default="auto", choices=["auto", "left", "right"],
                         help="채팅 위치: auto=자동감지, left=왼쪽, right=오른쪽 (기본: auto)")
+    parser.add_argument("--cookies-browser", default="",
+                        help="로그인 쿠키를 가져올 브라우저 (chrome/edge/whale/firefox). 연령제한·구독자 전용 다시보기용")
     args = parser.parse_args()
 
     if args.cpu_encode:
@@ -374,7 +376,7 @@ def main():
         print(f"[1/4] 영상 다운로드: {args.video}")
         with tempfile.TemporaryDirectory(prefix="batch_shorts_dl_") as tmpdir:
             try:
-                video_path, title = download_video(args.video, tmpdir, args.max_height)
+                video_path, title = download_video(args.video, tmpdir, args.max_height, cookies_browser=args.cookies_browser)
                 video_name = title
                 print(f"  제목: {title}")
             except Exception as e:

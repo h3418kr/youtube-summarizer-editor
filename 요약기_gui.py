@@ -41,6 +41,7 @@ WMPOS_CODES = ["tl", "tr", "bl", "br"]  # 좌상 우상 좌하 우하
 WMKEY_CODES = ["", "white", "black"]  # 배경 투명 처리: 없음 / 흰색 / 검정
 CAMPOS_CODES = ["auto", "br", "bl", "tr", "tl"]  # 캠 위치: 자동감지 우하 좌하 우상 좌상
 CHATPOS_CODES = ["auto", "left", "right"]  # 채팅 위치: 자동감지, 왼쪽, 오른쪽
+COOKIES_CODES = ["", "chrome", "edge", "whale", "firefox"]  # 로그인 쿠키: 없음, Chrome, Edge, Whale, Firefox
 CLOSEUPFREQ_CODES = [1, 2, 3]  # 클로즈업 빈도: 1=매 전환, 2=2회당 1회, 3=3회당 1회
 PUNCHIN_CODES = ["none", "low", "mid", "high"]  # 펀치인 레벨: 끔, 적게, 보통, 많이
 
@@ -84,7 +85,7 @@ STRINGS = {
         "url": "URL 또는 로컬 파일",
         "browse_file": "파일 선택",
         "dlg_url_video": "로컬 영상 파일 선택",
-        "url_hint": "(방송 URL을 넣거나, 직접 녹화한 로컬 영상 파일을 선택하세요)",
+        "url_hint": "(유튜브/치지직/SOOP(아프리카)/트위치 URL 또는 로컬 영상 파일을 선택하세요)",
         "outdir": "출력 폴더",
         "browse": "찾아보기",
         "options": "옵션",
@@ -139,6 +140,8 @@ STRINGS = {
         "chat_analysis_hint": "(채팅창이 없으면 자동으로 무시됩니다)",
         "chat_pos": "채팅 위치",
         "chatpos_values": ["자동 감지", "왼쪽", "오른쪽"],
+        "cookies_browser": "로그인 쿠키",
+        "cookiesbrowser_values": ["사용 안 함", "Chrome", "Edge", "Whale", "Firefox"],
         "hwenc": "GPU 가속 인코딩",
         "hwenc_hint": "(지원하는 GPU가 있으면 자동 사용 — 호환성 문제 시 끔)",
         "msg_analyze_done": ("하이라이트 후보 분석 완료!\n\n"
@@ -263,7 +266,7 @@ STRINGS = {
         "url": "URL or local file",
         "browse_file": "Pick file",
         "dlg_url_video": "Select local video file",
-        "url_hint": "(paste a stream URL, or pick a video file you recorded yourself)",
+        "url_hint": "(paste YouTube/Chzzk/SOOP(Afreeca)/Twitch URL, or select a local video file)",
         "outdir": "Output folder",
         "browse": "Browse",
         "options": "Options",
@@ -318,6 +321,8 @@ STRINGS = {
         "chat_analysis_hint": "(ignored automatically if no chat overlay)",
         "chat_pos": "Chat position",
         "chatpos_values": ["Auto-detect", "Left", "Right"],
+        "cookies_browser": "Login cookies",
+        "cookiesbrowser_values": ["None", "Chrome", "Edge", "Whale", "Firefox"],
         "hwenc": "GPU-accelerated encoding",
         "hwenc_hint": "(auto-used if supported GPU is available — disable if compatibility issues)",
         "msg_analyze_done": ("Highlight analysis finished!\n\n"
@@ -728,6 +733,15 @@ def build_summarizer_tab(nb):
     reg("combo", (chat_pos_combo, "chatpos_values"), "chatpos_values")
     chat_pos_combo.grid(row=20, column=1, columnspan=3, sticky="w", padx=8)
 
+    # 로그인 쿠키
+    lbl_cookies = ttk.Label(opt, text=_t("cookies_browser"))
+    reg("text", lbl_cookies, "cookies_browser")
+    lbl_cookies.grid(row=21, column=0, sticky="w", padx=8)
+    cookies_combo = ttk.Combobox(opt, values=_t("cookiesbrowser_values"), state="readonly", width=15)
+    cookies_combo.current(0)  # 사용 안 함
+    reg("combo", (cookies_combo, "cookiesbrowser_values"), "cookiesbrowser_values")
+    cookies_combo.grid(row=21, column=1, columnspan=3, sticky="w", padx=8)
+
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_summarize"))
     reg("var", btn_label_var, "btn_summarize")
@@ -777,6 +791,9 @@ def build_summarizer_tab(nb):
             chat_pos_idx = max(chat_pos_combo.current(), 0)
             if chat_pos_idx > 0:  # "auto"가 아닌 경우만 추가
                 cmd += ["--chat-region", CHATPOS_CODES[chat_pos_idx]]
+        cookies_idx = max(cookies_combo.current(), 0)
+        if cookies_idx > 0:  # "사용 안 함" 아닌 경우만 추가
+            cmd += ["--cookies-browser", COOKIES_CODES[cookies_idx]]
         if not hwenc_var.get():
             cmd.append("--cpu-encode")
 
@@ -1686,6 +1703,15 @@ def build_autoshorts_tab(nb):
     reg("combo", (autoshorts_chat_pos_combo, "chatpos_values"), "chatpos_values")
     autoshorts_chat_pos_combo.grid(row=8, column=3, sticky="w", padx=8)
 
+    # 로그인 쿠키
+    lbl_autoshorts_cookies = ttk.Label(opt, text=_t("cookies_browser"))
+    reg("text", lbl_autoshorts_cookies, "cookies_browser")
+    lbl_autoshorts_cookies.grid(row=9, column=0, sticky="w", padx=8)
+    autoshorts_cookies_combo = ttk.Combobox(opt, values=_t("cookiesbrowser_values"), state="readonly", width=15)
+    autoshorts_cookies_combo.current(0)  # 사용 안 함
+    reg("combo", (autoshorts_cookies_combo, "cookiesbrowser_values"), "cookiesbrowser_values")
+    autoshorts_cookies_combo.grid(row=9, column=1, columnspan=3, sticky="w", padx=8)
+
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_autoshorts"))
     reg("var", btn_label_var, "btn_autoshorts")
@@ -1754,6 +1780,9 @@ def build_autoshorts_tab(nb):
             autoshorts_chat_pos_idx = max(autoshorts_chat_pos_combo.current(), 0)
             if autoshorts_chat_pos_idx > 0:  # "auto"가 아닌 경우만 추가
                 cmd += ["--chat-region", CHATPOS_CODES[autoshorts_chat_pos_idx]]
+        autoshorts_cookies_idx = max(autoshorts_cookies_combo.current(), 0)
+        if autoshorts_cookies_idx > 0:  # "사용 안 함" 아닌 경우만 추가
+            cmd += ["--cookies-browser", COOKIES_CODES[autoshorts_cookies_idx]]
 
         log.config(state="normal")
         log.delete("1.0", tk.END)

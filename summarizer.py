@@ -184,8 +184,13 @@ def run_ffmpeg(cmd, label: str = "", cwd: str = None) -> None:
         raise subprocess.CalledProcessError(proc.returncode, cmd, output=last)
 
 
-def download_video(url: str, tmpdir: str, max_height: int = 720) -> Tuple[str, str]:
-    info_raw = run(YTDLP + ["--print", "%(id)s|||%(title)s", "--no-playlist", url])
+def download_video(url: str, tmpdir: str, max_height: int = 720, cookies_browser: str = "") -> Tuple[str, str]:
+    cmd_info = YTDLP + ["--print", "%(id)s|||%(title)s", "--no-playlist"]
+    if cookies_browser:
+        cmd_info.extend(["--cookies-from-browser", cookies_browser])
+    cmd_info.append(url)
+    info_raw = run(cmd_info)
+
     vid_id, title = info_raw.split("|||", 1)
     out_path = os.path.join(tmpdir, f"{vid_id}.mp4")
     fmt = (
@@ -193,12 +198,12 @@ def download_video(url: str, tmpdir: str, max_height: int = 720) -> Tuple[str, s
         f"/bestvideo[height<={max_height}]+bestaudio"
         f"/best[height<={max_height}]/best"
     )
-    subprocess.run(
-        YTDLP + ["-f", fmt, "--merge-output-format", "mp4",
-         "--newline",
-         "-o", out_path, "--no-playlist", "--no-update", url],
-        check=True, **_PROC_KW
-    )
+    cmd_dl = YTDLP + ["-f", fmt, "--merge-output-format", "mp4", "--newline", "-o", out_path, "--no-playlist", "--no-update"]
+    if cookies_browser:
+        cmd_dl.extend(["--cookies-from-browser", cookies_browser])
+    cmd_dl.append(url)
+
+    subprocess.run(cmd_dl, check=True, **_PROC_KW)
     return out_path, title
 
 
@@ -2032,6 +2037,8 @@ def main():
                         help="화면 채팅창 자동 감지 & 반응 반영 (채팅이 없으면 자동 무시됨)")
     parser.add_argument("--chat-region", default="auto", choices=["auto", "left", "right"],
                         help="채팅 위치: auto=자동감지, left=왼쪽, right=오른쪽 (기본: auto)")
+    parser.add_argument("--cookies-browser", default="",
+                        help="로그인 쿠키를 가져올 브라우저 (chrome/edge/whale/firefox). 연령제한·구독자 전용 다시보기용")
     args = parser.parse_args()
 
     if args.cpu_encode:
@@ -2055,7 +2062,7 @@ def main():
             print(f"  File : {video_path}")
         else:
             print(f"[1/7] Downloading video (max {args.max_height}p)...")
-            video_path, title = download_video(args.url, tmpdir, max_height=args.max_height)
+            video_path, title = download_video(args.url, tmpdir, max_height=args.max_height, cookies_browser=args.cookies_browser)
             print(f"  Title: {title}")
             print(f"  Saved: {video_path}")
 

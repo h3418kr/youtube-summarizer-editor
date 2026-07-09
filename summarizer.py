@@ -1891,6 +1891,109 @@ def map_original_time_to_cut(original_time: float, keep_segments: List[Tuple[flo
     return result
 
 
+def _detect_silence_intervals(media_path: str, threshold_db: float = -30.0, min_silence: float = 0.4) -> Optional[List[Tuple[float, float]]]:
+    """Detect silence intervals in audio using ffmpeg silencedetect.
+
+    Returns: List of (start, end) tuples for silent intervals, or None on failure.
+    """
+    try:
+        dur = get_duration(media_path)
+
+        # Run silencedetect filter
+        cmd = [
+            "ffmpeg", "-i", os.path.abspath(media_path),
+            "-af", f"silencedetect=noise={threshold_db}dB:d={min_silence}",
+            "-f", "null", "-"
+        ]
+
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, encoding="utf-8", errors="replace",
+            **_PROC_KW
+        )
+        _, stderr = proc.communicate()
+
+        if proc.returncode != 0:
+            return None
+
+        # Parse silence intervals
+        silence_intervals = []
+        lines = (stderr or "").split("\n")
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            if "silence_start:" in line:
+                try:
+                    start_str = line.split("silence_start:")[-1].strip().split()[0]
+                    start = float(start_str)
+                    end = None
+                    for j in range(i+1, min(i+5, len(lines))):
+                        if "silence_end:" in lines[j]:
+                            end_str = lines[j].split("silence_end:")[-1].strip().split()[0]
+                            end = float(end_str)
+                            break
+                    if end is not None:
+                        silence_intervals.append((max(0.0, start), min(dur, end)))
+                        i = j
+                    else:
+                        i += 1
+                except (ValueError, IndexError):
+                    i += 1
+            else:
+                i += 1
+
+        return silence_intervals if silence_intervals else None
+    except Exception:
+        return None
+
+
+def estimate_cut_ratio(silence_intervals: List[Tuple[float, float]], segments: List[Tuple[float, float]],
+                       min_silence: float = 0.4, keep_pad: float = 0.06) -> float:
+    """Estimate the proportion of audio that will be removed by silence_cut within selected segments.
+
+    Applies the same padding logic as silence_cut: each silence interval loses
+    max(0, length - 2*keep_pad) seconds. Merge and short-segment rules are approximated.
+
+    Args:
+        silence_intervals: List of (start, end) silence times (full timeline)
+        segments: List of (start, end) highlight segments to keep
+        min_silence: Minimum silence duration (for reference; actual use in keep logic)
+        keep_pad: Padding around silence edges that is retained
+
+    Returns: Float in [0.0, 0.9] representing fraction of segment audio to be removed
+    """
+    if not silence_intervals or not segments:
+        return 0.0
+
+    # Calculate total duration of selected segments
+    total_segment_duration = sum(e - s for s, e in segments)
+    if total_segment_duration <= 0:
+        return 0.0
+
+    # Find silence intervals that overlap with any selected segment
+    silence_to_remove = 0.0
+    for sil_start, sil_end in silence_intervals:
+        sil_len = sil_end - sil_start
+        # After padding, actually removed = max(0, sil_len - 2*keep_pad)
+        actual_removal = max(0.0, sil_len - 2.0 * keep_pad)
+
+        # Check overlap with any segment
+        for seg_start, seg_end in segments:
+            # Overlapping interval
+            overlap_start = max(sil_start, seg_start)
+            overlap_end = min(sil_end, seg_end)
+
+            if overlap_start < overlap_end:
+                # This silence overlaps with this segment
+                overlap_len = overlap_end - overlap_start
+                # Proportion of this silence that falls in segment
+                silence_to_remove += (overlap_len / sil_len) * actual_removal if sil_len > 0 else 0.0
+
+    ratio = silence_to_remove / total_segment_duration
+    # Clamp to [0.0, 0.9] to avoid pathological values
+    return min(0.9, max(0.0, ratio))
+
+
 def silence_cut(video_path: str, out_path: str, tmpdir: str, threshold_db: float = -30.0,
                 min_silence: float = 0.4, keep_pad: float = 0.06) -> Tuple[bool, Optional[List[Tuple[float, float]]]]:
     """Detect silent gaps and remove them (jump cut) to tighten pacing.
@@ -1912,52 +2015,10 @@ def silence_cut(video_path: str, out_path: str, tmpdir: str, threshold_db: float
         # Get video duration
         dur = get_duration(video_path)
 
-        # Run silencedetect filter to find silence boundaries
-        cmd = [
-            "ffmpeg", "-i", os.path.abspath(video_path),
-            "-af", f"silencedetect=noise={threshold_db}dB:d={min_silence}",
-            "-f", "null", "-"
-        ]
-
-        proc = subprocess.Popen(
-            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, encoding="utf-8", errors="replace",
-            **_PROC_KW
-        )
-        _, stderr = proc.communicate()
-
-        if proc.returncode != 0:
+        # Detect silence intervals using helper
+        silence_intervals = _detect_silence_intervals(video_path, threshold_db, min_silence)
+        if silence_intervals is None:
             return (False, None)
-
-        # Parse silence_start and silence_end lines from ffmpeg stderr
-        # Example: "silence_start: 1.234" and "silence_end: 2.345"
-        silence_intervals = []
-        lines = (stderr or "").split("\n")
-        i = 0
-        while i < len(lines):
-            line = lines[i]
-            if "silence_start:" in line:
-                try:
-                    start_str = line.split("silence_start:")[-1].strip().split()[0]
-                    start = float(start_str)
-                    # Look for corresponding silence_end in next few lines
-                    end = None
-                    for j in range(i+1, min(i+5, len(lines))):
-                        if "silence_end:" in lines[j]:
-                            # silence_end 줄은 '2.345 | silence_duration: 1.1' 형식이라
-                            # 첫 토큰(숫자)만 취해야 float 파싱이 된다.
-                            end_str = lines[j].split("silence_end:")[-1].strip().split()[0]
-                            end = float(end_str)
-                            break
-                    if end is not None:
-                        silence_intervals.append((max(0.0, start), min(dur, end)))
-                        i = j
-                    else:
-                        i += 1
-                except (ValueError, IndexError):
-                    i += 1
-            else:
-                i += 1
 
         # Build "keep" segments = inverse of silence intervals
         keep_segments = []
@@ -2226,6 +2287,48 @@ def main():
         if not segments:
             print("ERROR: No segments found. Try lowering --target-min or adjusting expand settings.")
             sys.exit(1)
+
+        # Jump-cut 목표 길이 보정: 무음 제거량을 미리 예측해 그만큼 더 선정
+        if args.jump_cut:
+            print(f"  점프컷 무음 제거량 보정 중...")
+            # 전체 오디오에서 무음 구간 감지 (1회)
+            silence_intervals = _detect_silence_intervals(video_path, threshold_db=-30.0, min_silence=0.4)
+            if silence_intervals:
+                # 1차 선정에서의 무음 비율 추정
+                ratio = estimate_cut_ratio(silence_intervals, segments, min_silence=0.4, keep_pad=0.06)
+                if ratio > 0.03:
+                    # 보정 목표: target_sec / (1 - ratio)
+                    original_dur = sum(e - s for s, e in segments)
+                    corrected_target = target_sec / (1.0 - ratio)
+
+                    # 캡: min(원본 총 길이의 90%, target_sec*1.8)
+                    full_dur = get_duration(video_path)
+                    cap_by_full = full_dur * 0.9
+                    cap_by_target = target_sec * 1.8
+                    corrected_target_capped = min(corrected_target, cap_by_full, cap_by_target)
+
+                    # 재선정 (1회)
+                    segments = find_exciting_segments(
+                        energy, window_sec, whisper_result,
+                        target_sec=int(corrected_target_capped),
+                        expand_before=args.expand_before,
+                        expand_after=args.expand_after,
+                        bridge_gap=args.bridge_gap,
+                        chat_curve=chat_curve,
+                        chat_sample_sec=chat_sample_sec,
+                        chat_weight=chat_weight,
+                        voice_energy=voice_energy,
+                    )
+
+                    # 재선정 후 무음 비율 재계산 (로그용)
+                    ratio_after = estimate_cut_ratio(silence_intervals, segments, min_silence=0.4, keep_pad=0.06)
+                    final_dur = sum(e - s for s, e in segments)
+
+                    # 로그: "  점프컷 보정: 선정 구간 무음 24.7% 예상 → 13.3분어치 선정 (최종 목표 10.0분)"
+                    print(f"  점프컷 보정: 선정 구간 무음 {ratio*100:.1f}% 예상 → {corrected_target_capped/60:.1f}분어치 선정 (최종 목표 {target_sec/60:.1f}분)")
+                    print(f"    (재선정 후 예상 무음률: {ratio_after*100:.1f}% → 최종 길이: {final_dur/60:.1f}분)")
+            else:
+                print(f"  (무음 구간 감지 실패 - 보정 없이 진행)")
 
         safe_title = safe_filename(title)
 

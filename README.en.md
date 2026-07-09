@@ -6,7 +6,7 @@
 
 # 🔥 Live Highlight Maker (Portable)
 
-**A video tool that automatically analyzes long live-stream VODs, extracts only the best moments (highlights),**
+**A video tool that automatically analyzes long live-stream VODs (YouTube, Chzzk, SOOP, Twitch), extracts only the best moments (highlights),**
 **and layers on subtitles, transitions and background music to produce an upload-ready finished video.**
 
 Powered by faster-whisper speech recognition for rapid subtitles (3x faster than before) · **chat-reaction & voice-based highlight detection** · **GPU-accelerated encoding (auto-detected)** · **closeup transitions (auto-detect camera)** and ffmpeg · comes with a **graphical UI (GUI)** so you don't need to know Python · **modern dark theme with Windows 11 styling (sv-ttk)** · **automatic update notifications**
@@ -19,7 +19,7 @@ Powered by faster-whisper speech recognition for rapid subtitles (3x faster than
 
 Rewatching and editing an hours-long live stream from scratch is exhausting. This tool automates that process.
 
-> **Just paste a VOD URL → it finds moments where the streamer's voice & chat reactions peaked (highlights) on its own → cuts them into a short summary video at your target length → and even adds subtitles.**
+> **Just paste a YouTube, Chzzk, SOOP, or Twitch VOD URL → it finds moments where the streamer's voice & chat reactions peaked (highlights) on its own → cuts them into a short summary video at your target length → and even adds subtitles.**
 
 It was built with game-stream highlight editing in mind, but works just as well on any live stream or video.
 
@@ -122,7 +122,7 @@ Below is the actual program screen. Just follow the numbers.
 
 | Item | Description | Default |
 |------|------|--------|
-| URL or local file | Paste the VOD address to summarize, or click **"Pick file"** to load a video you recorded yourself | — |
+| URL or local file | Paste the VOD address (YouTube, Chzzk, SOOP, Twitch supported) to summarize, or click **"Pick file"** to load a video you recorded yourself | — |
 | Output folder | Where the result files are saved | `output` |
 | Target length (min) | Desired length of the summary | `10` min |
 | Whisper model | Subtitle accuracy (bigger = more accurate, slower) | `small` recommended |
@@ -144,6 +144,7 @@ Below is the actual program screen. Just follow the numbers.
 | Analyze candidates only | Skip building the video; extract candidate ranges and **auto-fill the Manual highlights tab** (skips Whisper, so it's fast) | off |
 | Chat reaction boost | Amplify the highlight score when on-screen chat erupts (auto-disabled if no chat detected) | on |
 | Chat position | Auto-detect / left / right | auto-detect |
+| Login cookies | For downloading age-restricted / adult-verified / subscriber-only VODs. Use login cookies from selected browser: off / Chrome / Edge / Whale / Firefox | off |
 
 **Button: click "Download & Summarize"** → download → analyze → edit, all automatic.
 When finished, three files appear in the output folder:
@@ -229,7 +230,7 @@ Generate multiple vertical shorts from a single video's highlights in one pass. 
 
 | Item | Description | Default |
 |------|------|--------|
-| URL or local file | VOD address or select a local video file to create shorts from | — |
+| URL or local file | VOD address (YouTube, Chzzk, SOOP, Twitch supported) or select a local video file to create shorts from | — |
 | Number of shorts | How many shorts to generate (N) | `5` |
 | Length per short (s) | Duration of each short | `30` s |
 | Output folder | Where result files are saved | `output` |
@@ -244,6 +245,7 @@ Generate multiple vertical shorts from a single video's highlights in one pass. 
 | GPU-accelerated encoding | Auto-detects and uses graphics card (NVIDIA/Intel/AMD) for fast hardware encoding (uncheck if issues) | on |
 | Chat reaction boost | Amplify the highlight score when on-screen chat erupts (auto-disabled if no chat detected) | on |
 | Chat position | Auto-detect / left / right | auto-detect |
+| Login cookies | For downloading age-restricted / adult-verified / subscriber-only VODs. Use login cookies from selected browser: off / Chrome / Edge / Whale / Firefox | off |
 | Add AI titles (Gemini) | AI analyzes audio and auto-generates title text to display on/off | off |
 | Gemini API key | Paste a free key (saved after first use). See how to get one below | — |
 

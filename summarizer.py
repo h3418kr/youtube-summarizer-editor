@@ -208,8 +208,13 @@ def download_video(url: str, tmpdir: str, max_height: int = 720, cookies_browser
 
 
 def extract_audio(video_path: str, out_wav: str) -> None:
+    # aresample=async=1: 오디오 패킷 타임스탬프 사이 미세 간극을 무음으로 채워
+    # wav 길이를 재생 타임라인과 일치시킨다. 점프컷처럼 수백 개 조각을 concat한
+    # 영상은 간극이 누적돼 wav가 몇 초씩 짧아지고, 그 wav로 만든 자막이
+    # 뒤로 갈수록 앞당겨지는(밀리는) 버그가 있었다.
     run_ffmpeg(
-        ["ffmpeg", "-y", "-i", video_path, "-vn", "-ar", "16000", "-ac", "1", "-f", "wav", out_wav],
+        ["ffmpeg", "-y", "-i", video_path, "-vn", "-af", "aresample=async=1:first_pts=0",
+         "-ar", "16000", "-ac", "1", "-f", "wav", out_wav],
         label="(오디오 추출)",
     )
 

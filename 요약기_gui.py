@@ -2148,7 +2148,7 @@ def main():
     # Background update check thread
     def check_for_update():
         try:
-            url = "https://api.github.com/repos/h3418kr/youtube-summarizer-editor/releases/latest"
+            url = "https://api.github.com/repos/h3418kr/live-highlight-maker/releases/latest"
             req = urllib.request.Request(url, headers={"User-Agent": "Claude-App"})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
@@ -2173,7 +2173,7 @@ def main():
         )
         notif_label.pack(side="left", padx=4)
         def on_click(*_):
-            webbrowser.open("https://github.com/h3418kr/youtube-summarizer-editor/releases/latest")
+            webbrowser.open("https://github.com/h3418kr/live-highlight-maker/releases/latest")
         notif_label.bind("<Button-1>", on_click)
 
     threading.Thread(target=check_for_update, daemon=True).start()

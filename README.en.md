@@ -69,6 +69,7 @@ The GUI (`요약기_gui.py`) has five tabs. A **KO/EN language toggle button (�
 ### 5️⃣ Finalize tab — polish it for upload
 
 - Combines your **summary video + subtitles (SRT) + thumbnail (+ optional intro/outro/BGM/logo)** into a single finished mp4.
+- **Auto-generate intro teaser** — automatically picks 2-4 of the hottest moments from the main video (1.5 seconds each) to create a preview and places it at the very start of the finished video. (YouTube-style cold open with white flash into main video)
 - **Burns subtitles into** the picture (hardsub) → they show up on any player.
 - Uses the thumbnail as an **① intro clip** at the front and also embeds it as **② the mp4 cover art**.
 - Lets you attach a separate **intro / outro video** (a standalone mp4) before and after the main clip. Even with different resolution/aspect ratio, it's auto-converted to the main clip's spec and stitched in.
@@ -305,6 +306,8 @@ Combine the summary video + (edited) subtitles + thumbnail image into an upload-
 | Subtitle font | Font: Paperlogy / Malgun Gothic |
 | BGM volume | BGM level (0–1), relative to speech (default `0.25`) |
 | GPU-accelerated encoding | Auto-detects and uses graphics card (NVIDIA/Intel/AMD) for fast hardware encoding (uncheck if issues) | on |
+| Auto intro teaser | Auto-generate a preview from the hottest moments of the main video on/off |
+| Teaser clip count | Number of clips in the preview (each 1.5 seconds; default `3`) |
 | Add intro | Use the thumbnail as the opening scene on/off |
 | Insert cover | Embed the thumbnail as album-art-style cover in the mp4 on/off |
 | Burn subtitles | Bake subtitles into the video (hardsub) on/off |

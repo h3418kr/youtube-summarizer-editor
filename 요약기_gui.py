@@ -23,7 +23,7 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-APP_VERSION = "2.6.0"
+APP_VERSION = "2.7.0"
 
 # ── sv-ttk availability check ─────────────────────────────────────────────────────
 try:
@@ -301,6 +301,7 @@ STRINGS = {
         "bgm_volume": "배경음악 볼륨 (0~1)",
         "opt_loudnorm": "음량 정규화 (유튜브 -14 LUFS)",
         "teaser": "인트로 티저 자동 (하이라이트 예고편)",
+        "teaser_cuts_label": "티저 컷 수",
         "teaser_cuts": ["2개", "3개", "4개"],
         "btn_finalize": "완성 영상 만들기",
         # file dialog titles
@@ -485,6 +486,7 @@ STRINGS = {
         "bgm_volume": "BGM volume (0-1)",
         "opt_loudnorm": "Normalize loudness (YouTube -14 LUFS)",
         "teaser": "Auto intro teaser (highlight preview)",
+        "teaser_cuts_label": "Teaser cuts",
         "teaser_cuts": ["2 cuts", "3 cuts", "4 cuts"],
         "btn_finalize": "Make Final Video",
         # file dialog titles
@@ -1599,7 +1601,7 @@ def build_finalize_tab(nb):
     chk_teaser = ttk.Checkbutton(opt, text=_t("teaser"), variable=teaser_var)
     reg("text", chk_teaser, "teaser")
     chk_teaser.grid(row=9, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 0))
-    _label(opt, "teaser_cuts", row=9, column=2, sticky="w", padx=(16, 4), pady=(6, 0))
+    _label(opt, "teaser_cuts_label", row=9, column=2, sticky="w", padx=(16, 4), pady=(6, 0))
     teaser_cuts_combo = ttk.Combobox(opt, values=_t("teaser_cuts"), width=8, state="readonly")
     teaser_cuts_combo.current(1)  # 기본 3개
     reg("combo", (teaser_cuts_combo, "teaser_cuts"), "teaser_cuts")

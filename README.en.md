@@ -129,7 +129,7 @@ Below is the actual program screen. Just follow the numbers.
 | Output folder | Where the result files are saved | `output` |
 | Target length (min) | Desired length of the summary. With auto silence cutting enabled, the duration of removed silence is predicted in advance and that much additional time is selected, so the final video matches the target length | `10` min |
 | Whisper model | Subtitle accuracy (bigger = more accurate, slower) | `small` recommended |
-| Language | Spoken language | `ko` (Korean) |
+| Language | Spoken language — **set `en` for English videos** to get English subtitles (99 language codes supported, e.g. `ja` for Japanese) | `ko` (Korean) |
 | Quality | 360 / 480 / **720** / 1080 | `720` recommended |
 | Pre-peak extend (s) | Extra time added before each highlight start | `5` s |
 | Post-peak extend (s) | Extra time added after each highlight end | `20` s |
@@ -241,7 +241,7 @@ Generate multiple vertical shorts from a single video's highlights in one pass. 
 | Vertical mode | Smart auto (recommended) / center crop / left crop / right crop / blur background | `smart auto` |
 | Auto-generate & burn subtitles (Whisper) | Burn Whisper subtitles into the video on/off | off |
 | Whisper model | Subtitle accuracy (bigger = more accurate, slower) | `small` recommended |
-| Language | Spoken language | `ko` (Korean) |
+| Language | Spoken language — **set `en` for English videos** to get English subtitles (99 language codes supported, e.g. `ja` for Japanese) | `ko` (Korean) |
 | Subtitle position | Vertical position of the captions: bottom / center / top | `bottom` |
 | Subtitle font | Font: Paperlogy / Malgun Gothic | `Paperlogy` |
 | Subtitle size | Size of the burned-in captions (in real 1080x1920 pixels) | `54` |

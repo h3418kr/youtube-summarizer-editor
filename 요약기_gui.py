@@ -47,6 +47,7 @@ PUNCHIN_CODES = ["none", "low", "mid", "high"]  # 펀치인 레벨: 끔, 적게,
 
 # Gemini API 키를 저장/불러오기 (한 번 입력하면 다음에도 자동 채움)
 GEMINI_KEY_FILE = os.path.join(SCRIPT_DIR, "gemini_key.txt")
+SETTINGS_FILE = os.path.join(SCRIPT_DIR, "settings.json")
 
 
 def load_gemini_key():
@@ -63,6 +64,86 @@ def save_gemini_key(key):
             f.write((key or "").strip())
     except Exception:
         pass
+
+
+# ── 설정 저장/복원 메커니즘 ──────────────────────────────────────────────────────
+SETTINGS_REG = []  # (key, kind, obj) 등록 리스트
+
+
+def reg_setting(key, kind, obj):
+    """설정 항목 등록. key: 고유 키, kind: "var"/"combo"/"text", obj: 위젯 또는 Variable"""
+    SETTINGS_REG.append((key, kind, obj))
+
+
+def save_settings():
+    """등록된 모든 설정을 settings.json에 저장 (예외 무시)"""
+    try:
+        data = {"version": 1}
+
+        # 언어 상태 저장
+        data["_lang"] = STATE["lang"]
+
+        for key, kind, obj in SETTINGS_REG:
+            try:
+                if kind == "var":
+                    # tk.StringVar, tk.BooleanVar 등
+                    val = obj.get()
+                    data[key] = val
+                elif kind == "combo":
+                    # ttk.Combobox: 현재 선택 인덱스 저장
+                    data[key] = obj.current()
+                elif kind == "text":
+                    # tk.Text, scrolledtext.ScrolledText: 전체 내용
+                    data[key] = obj.get("1.0", tk.END)
+            except Exception:
+                pass  # 개별 항목 실패 무시
+
+        with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass  # 저장 실패 무시
+
+
+def load_settings():
+    """settings.json에서 설정을 복원. 버전 불일치 시 무시"""
+    try:
+        if not os.path.isfile(SETTINGS_FILE):
+            return
+
+        with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # 버전 확인
+        file_version = data.get("version", 1)
+        if file_version != 1:
+            return
+
+        # 언어 먼저 복원 (다른 항목들이 필요로 함)
+        if "_lang" in data:
+            STATE["lang"] = data["_lang"]
+            apply_language()
+
+        # 각 등록된 항목 적용
+        for key, kind, obj in SETTINGS_REG:
+            if key not in data:
+                continue
+            try:
+                val = data[key]
+                if kind == "var":
+                    obj.set(val)
+                elif kind == "combo":
+                    # 인덱스 범위 검증
+                    if isinstance(val, int) and 0 <= val < len(obj["values"]):
+                        obj.current(val)
+                elif kind == "text":
+                    # 텍스트 삽입 (기존 내용 삭제)
+                    obj.delete("1.0", tk.END)
+                    obj.insert("1.0", val)
+            except Exception:
+                pass  # 개별 항목 복원 실패 무시
+
+    except Exception:
+        pass  # 전체 파일 깨짐 무시
 SHORTS_MODE_CODES = ["smart", "center", "left", "right", "blur"]
 SHORTS_SUBPOS_CODES = ["bottom", "center", "top"]  # 하단 중앙 상단
 FONT_CODES = ["Paperlogy", "Malgun Gothic"]  # 글꼴 코드 (기본: Paperlogy)
@@ -577,6 +658,7 @@ def build_summarizer_tab(nb):
     # URL 또는 로컬 파일
     _label(frame, "url", row=1, column=0, sticky="w", **pad)
     url_var = tk.StringVar()
+    reg_setting("sum.url", "var", url_var)
     ttk.Entry(frame, textvariable=url_var, width=52).grid(
         row=1, column=1, sticky="ew", padx=(0, 4), pady=4)
 
@@ -597,6 +679,7 @@ def build_summarizer_tab(nb):
     # 출력 폴더
     _label(frame, "outdir", row=3, column=0, sticky="w", **pad)
     outdir_var = tk.StringVar(value=os.path.join(SCRIPT_DIR, "output"))
+    reg_setting("sum.outdir", "var", outdir_var)
     ttk.Entry(frame, textvariable=outdir_var, width=52).grid(
         row=3, column=1, sticky="ew", padx=(0, 4), pady=4)
     browse_out = ttk.Button(
@@ -614,10 +697,15 @@ def build_summarizer_tab(nb):
     opt.columnconfigure(3, weight=1)
 
     target_var = tk.StringVar(value="10")
+    reg_setting("sum.target_min", "var", target_var)
     lang_var = tk.StringVar(value="ko")
+    reg_setting("sum.language", "var", lang_var)
     before_var = tk.StringVar(value="5")
+    reg_setting("sum.expand_before", "var", before_var)
     after_var = tk.StringVar(value="20")
+    reg_setting("sum.expand_after", "var", after_var)
     bridge_var = tk.StringVar(value="8")
+    reg_setting("sum.bridge", "var", bridge_var)
 
     _label(opt, "target_min", row=0, column=0, sticky="w", padx=(8, 4), pady=3)
     ttk.Entry(opt, textvariable=target_var, width=6).grid(row=0, column=1, sticky="w", pady=3)
@@ -625,6 +713,7 @@ def build_summarizer_tab(nb):
     model_combo = ttk.Combobox(opt, values=_t("model_values"), width=16, state="readonly")
     model_combo.current(2)  # small
     reg("combo", (model_combo, "model_values"), "model_values")
+    reg_setting("sum.model", "combo", model_combo)
     model_combo.grid(row=0, column=3, sticky="w", pady=3)
 
     _label(opt, "language", row=1, column=0, sticky="w", padx=(8, 4), pady=3)
@@ -633,6 +722,7 @@ def build_summarizer_tab(nb):
     quality_combo = ttk.Combobox(opt, values=_t("quality_values"), width=6, state="readonly")
     quality_combo.current(2)  # 720
     reg("combo", (quality_combo, "quality_values"), "quality_values")
+    reg_setting("sum.quality", "combo", quality_combo)
     quality_combo.grid(row=1, column=3, sticky="w", pady=3)
 
     _label(opt, "expand_before", row=2, column=0, sticky="w", padx=(8, 4), pady=3)
@@ -648,11 +738,13 @@ def build_summarizer_tab(nb):
     trans_combo = ttk.Combobox(opt, values=_t("transition_values"), width=14, state="readonly")
     trans_combo.current(1)  # black
     reg("combo", (trans_combo, "transition_values"), "transition_values")
+    reg_setting("sum.transition", "combo", trans_combo)
     trans_combo.grid(row=4, column=1, sticky="w", pady=(6, 3))
     _label(opt, "sfx", row=4, column=2, sticky="w", padx=(16, 4), pady=(6, 3))
     sfx_combo = ttk.Combobox(opt, values=_t("sfx_values"), width=14, state="readonly")
     sfx_combo.current(1)  # whoosh
     reg("combo", (sfx_combo, "sfx_values"), "sfx_values")
+    reg_setting("sum.sfx", "combo", sfx_combo)
     sfx_combo.grid(row=4, column=3, sticky="w", pady=(6, 3))
     _label(opt, "sfx_hint", row=5, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
 
@@ -660,24 +752,29 @@ def build_summarizer_tab(nb):
     sum_campos_combo = ttk.Combobox(opt, values=_t("campos_values"), width=10, state="readonly")
     sum_campos_combo.current(0)  # auto = 자동 감지
     reg("combo", (sum_campos_combo, "campos_values"), "campos_values")
+    reg_setting("sum.cam_pos", "combo", sum_campos_combo)
     sum_campos_combo.grid(row=6, column=1, sticky="w", pady=(6, 3))
     _label(opt, "closeup_every", row=6, column=2, sticky="w", padx=(16, 4), pady=(6, 3))
     sum_closeupfreq_combo = ttk.Combobox(opt, values=_t("closeupfreq_values"), width=10, state="readonly")
     sum_closeupfreq_combo.current(1)  # "2회당 1회" = index 1
     reg("combo", (sum_closeupfreq_combo, "closeupfreq_values"), "closeupfreq_values")
+    reg_setting("sum.closeup_freq", "combo", sum_closeupfreq_combo)
     sum_closeupfreq_combo.grid(row=6, column=3, sticky="w", pady=(6, 3))
 
     _label(opt, "closeup_sec", row=7, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
     sum_closeup_sec_var = tk.StringVar(value="1.5")
+    reg_setting("sum.closeup_sec", "var", sum_closeup_sec_var)
     ttk.Entry(opt, textvariable=sum_closeup_sec_var, width=6).grid(row=7, column=1, sticky="w", pady=(6, 3))
     _label(opt, "punchin", row=7, column=2, sticky="w", padx=(16, 4), pady=(6, 3))
     sum_punchin_combo = ttk.Combobox(opt, values=_t("punchin_values"), width=10, state="readonly")
     sum_punchin_combo.current(0)  # "끔 (기본)" = index 0
     reg("combo", (sum_punchin_combo, "punchin_values"), "punchin_values")
+    reg_setting("sum.punchin", "combo", sum_punchin_combo)
     sum_punchin_combo.grid(row=7, column=3, sticky="w", pady=(6, 3))
 
     # 펀치인 시간 (선택)
     sum_punchin_times_var = tk.StringVar(value="")
+    reg_setting("sum.punchin_times", "var", sum_punchin_times_var)
     _label(opt, "punchin_times", row=8, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
     ttk.Entry(opt, textvariable=sum_punchin_times_var, width=40).grid(
         row=8, column=1, columnspan=3, sticky="ew", pady=(6, 3))
@@ -685,6 +782,7 @@ def build_summarizer_tab(nb):
 
     # 원본 영상 보관 폴더 (선택)
     save_video_var = tk.StringVar(value="")
+    reg_setting("sum.save_video", "var", save_video_var)
     _label(opt, "save_video", row=10, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
     ttk.Entry(opt, textvariable=save_video_var, width=28).grid(
         row=10, column=1, columnspan=2, sticky="ew", pady=(6, 3))
@@ -698,6 +796,7 @@ def build_summarizer_tab(nb):
 
     # 분석 전용 모드: 후보 구간만 뽑아 수동 하이라이트 탭으로 넘긴다
     analyze_var = tk.BooleanVar(value=False)
+    reg_setting("sum.analyze_only", "var", analyze_var)
     chk_analyze = ttk.Checkbutton(opt, text=_t("analyze_only"), variable=analyze_var)
     reg("text", chk_analyze, "analyze_only")
     chk_analyze.grid(row=12, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
@@ -705,6 +804,7 @@ def build_summarizer_tab(nb):
 
     # 무음 구간 자동 컷 (점프컷)
     jump_cut_var = tk.BooleanVar(value=False)
+    reg_setting("sum.jump_cut", "var", jump_cut_var)
     chk_jump_cut = ttk.Checkbutton(opt, text=_t("jump_cut"), variable=jump_cut_var)
     reg("text", chk_jump_cut, "jump_cut")
     chk_jump_cut.grid(row=14, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
@@ -712,6 +812,7 @@ def build_summarizer_tab(nb):
 
     # GPU 가속 인코딩
     hwenc_var = tk.BooleanVar(value=True)
+    reg_setting("sum.hwenc", "var", hwenc_var)
     chk_hwenc = ttk.Checkbutton(opt, text=_t("hwenc"), variable=hwenc_var)
     reg("text", chk_hwenc, "hwenc")
     chk_hwenc.grid(row=16, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
@@ -719,6 +820,7 @@ def build_summarizer_tab(nb):
 
     # 채팅 반응 반영
     chat_analysis_var = tk.BooleanVar(value=True)
+    reg_setting("sum.chat_analysis", "var", chat_analysis_var)
     chk_chat_analysis = ttk.Checkbutton(opt, text=_t("chat_analysis"), variable=chat_analysis_var)
     reg("text", chk_chat_analysis, "chat_analysis")
     chk_chat_analysis.grid(row=18, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
@@ -731,6 +833,7 @@ def build_summarizer_tab(nb):
     chat_pos_combo = ttk.Combobox(opt, values=_t("chatpos_values"), state="readonly", width=15)
     chat_pos_combo.current(0)  # 자동 감지
     reg("combo", (chat_pos_combo, "chatpos_values"), "chatpos_values")
+    reg_setting("sum.chat_pos", "combo", chat_pos_combo)
     chat_pos_combo.grid(row=20, column=1, columnspan=3, sticky="w", padx=8)
 
     # 로그인 쿠키
@@ -740,6 +843,7 @@ def build_summarizer_tab(nb):
     cookies_combo = ttk.Combobox(opt, values=_t("cookiesbrowser_values"), state="readonly", width=15)
     cookies_combo.current(0)  # 사용 안 함
     reg("combo", (cookies_combo, "cookiesbrowser_values"), "cookiesbrowser_values")
+    reg_setting("sum.cookies", "combo", cookies_combo)
     cookies_combo.grid(row=21, column=1, columnspan=3, sticky="w", padx=8)
 
     # 실행 버튼
@@ -833,6 +937,7 @@ def build_summarizer_tab(nb):
         if progress and progress_show:
             progress_show()
             progress.start()
+        save_settings()  # 작업 시작 시 설정 저장
         run_script(cmd, log, done, status_var=status_var)
 
     run_btn.config(command=on_run)
@@ -855,8 +960,11 @@ def build_manual_tab(nb):
     heading.grid(row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 8))
 
     video_var = tk.StringVar()
+    reg_setting("man.video", "var", video_var)
     outdir_var = tk.StringVar(value=os.path.join(SCRIPT_DIR, "output"))
+    reg_setting("man.outdir", "var", outdir_var)
     name_var = tk.StringVar()
+    reg_setting("man.name", "var", name_var)
 
     # 영상 파일
     _label(frame, "man_video", row=1, column=0, sticky="w", **pad)
@@ -898,6 +1006,7 @@ def build_manual_tab(nb):
                           insertbackground="#e0e0e0", relief="flat",
                           font=("Consolas", 10), wrap="none")
     ranges_text.insert("1.0", _t("man_ranges_example"))
+    reg_setting("man.ranges", "text", ranges_text)
     ranges_text.grid(row=5, column=0, columnspan=3, sticky="ew", padx=12, pady=(2, 6))
 
     # 옵션
@@ -911,49 +1020,59 @@ def build_manual_tab(nb):
     trans_combo = ttk.Combobox(opt, values=_t("transition_values"), width=14, state="readonly")
     trans_combo.current(1)  # black
     reg("combo", (trans_combo, "transition_values"), "transition_values")
+    reg_setting("man.transition", "combo", trans_combo)
     trans_combo.grid(row=0, column=1, sticky="w", pady=3)
     _label(opt, "sfx", row=0, column=2, sticky="w", padx=(16, 4), pady=3)
     sfx_combo = ttk.Combobox(opt, values=_t("sfx_values"), width=14, state="readonly")
     sfx_combo.current(1)  # whoosh
     reg("combo", (sfx_combo, "sfx_values"), "sfx_values")
+    reg_setting("man.sfx", "combo", sfx_combo)
     sfx_combo.grid(row=0, column=3, sticky="w", pady=3)
 
     _label(opt, "cam_pos", row=1, column=0, sticky="w", padx=(8, 4), pady=3)
     campos_combo = ttk.Combobox(opt, values=_t("campos_values"), width=10, state="readonly")
     campos_combo.current(0)  # auto = 자동 감지
     reg("combo", (campos_combo, "campos_values"), "campos_values")
+    reg_setting("man.cam_pos", "combo", campos_combo)
     campos_combo.grid(row=1, column=1, sticky="w", pady=3)
     _label(opt, "closeup_every", row=1, column=2, sticky="w", padx=(16, 4), pady=3)
     man_closeupfreq_combo = ttk.Combobox(opt, values=_t("closeupfreq_values"), width=10, state="readonly")
     man_closeupfreq_combo.current(1)  # "2회당 1회" = index 1
     reg("combo", (man_closeupfreq_combo, "closeupfreq_values"), "closeupfreq_values")
+    reg_setting("man.closeup_freq", "combo", man_closeupfreq_combo)
     man_closeupfreq_combo.grid(row=1, column=3, sticky="w", pady=3)
 
     _label(opt, "closeup_sec", row=2, column=0, sticky="w", padx=(8, 4), pady=3)
     man_closeup_sec_var = tk.StringVar(value="1.5")
+    reg_setting("man.closeup_sec", "var", man_closeup_sec_var)
     ttk.Entry(opt, textvariable=man_closeup_sec_var, width=6).grid(row=2, column=1, sticky="w", pady=3)
     _label(opt, "punchin", row=2, column=2, sticky="w", padx=(16, 4), pady=3)
     man_punchin_combo = ttk.Combobox(opt, values=_t("punchin_values"), width=10, state="readonly")
     man_punchin_combo.current(0)  # "끔 (기본)" = index 0
     reg("combo", (man_punchin_combo, "punchin_values"), "punchin_values")
+    reg_setting("man.punchin", "combo", man_punchin_combo)
     man_punchin_combo.grid(row=2, column=3, sticky="w", pady=3)
 
     # 펀치인 시간 (선택)
     man_punchin_times_var = tk.StringVar(value="")
+    reg_setting("man.punchin_times", "var", man_punchin_times_var)
     _label(opt, "punchin_times", row=3, column=0, sticky="w", padx=(8, 4), pady=3)
     ttk.Entry(opt, textvariable=man_punchin_times_var, width=40).grid(
         row=3, column=1, columnspan=3, sticky="ew", pady=3)
 
     subs_var = tk.BooleanVar(value=False)
+    reg_setting("man.subs", "var", subs_var)
     chk_subs = ttk.Checkbutton(opt, text=_t("man_subtitles"), variable=subs_var)
     reg("text", chk_subs, "man_subtitles")
     chk_subs.grid(row=4, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 3))
 
     lang_var = tk.StringVar(value="ko")
+    reg_setting("man.language", "var", lang_var)
     _label(opt, "model", row=5, column=0, sticky="w", padx=(8, 4), pady=3)
     model_combo = ttk.Combobox(opt, values=_t("model_values"), width=16, state="readonly")
     model_combo.current(2)  # small
     reg("combo", (model_combo, "model_values"), "model_values")
+    reg_setting("man.model", "combo", model_combo)
     model_combo.grid(row=5, column=1, sticky="w", pady=3)
     _label(opt, "language", row=5, column=2, sticky="w", padx=(16, 4), pady=3)
     ttk.Entry(opt, textvariable=lang_var, width=6).grid(row=5, column=3, sticky="w", pady=3)
@@ -963,6 +1082,7 @@ def build_manual_tab(nb):
     labelpos_combo = ttk.Combobox(opt, values=_t("wm_pos_values"), width=10, state="readonly")
     labelpos_combo.current(1)  # tr = 우상단
     reg("combo", (labelpos_combo, "wm_pos_values"), "wm_pos_values")
+    reg_setting("man.label_pos", "combo", labelpos_combo)
     labelpos_combo.grid(row=6, column=1, sticky="w", pady=(6, 3))
     _label(opt, "label_position_hint", row=6, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(6, 3))
 
@@ -970,10 +1090,12 @@ def build_manual_tab(nb):
     font_combo = ttk.Combobox(opt, values=_t("font_values"), width=12, state="readonly")
     font_combo.current(0)  # Paperlogy default
     reg("combo", (font_combo, "font_values"), "font_values")
+    reg_setting("man.font", "combo", font_combo)
     font_combo.grid(row=7, column=1, sticky="w", pady=3)
 
     # 무음 구간 자동 컷 (점프컷)
     man_jump_cut_var = tk.BooleanVar(value=False)
+    reg_setting("man.jump_cut", "var", man_jump_cut_var)
     chk_man_jump_cut = ttk.Checkbutton(opt, text=_t("jump_cut"), variable=man_jump_cut_var)
     reg("text", chk_man_jump_cut, "jump_cut")
     chk_man_jump_cut.grid(row=8, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
@@ -981,6 +1103,7 @@ def build_manual_tab(nb):
 
     # GPU 가속 인코딩
     man_hwenc_var = tk.BooleanVar(value=True)
+    reg_setting("man.hwenc", "var", man_hwenc_var)
     chk_man_hwenc = ttk.Checkbutton(opt, text=_t("hwenc"), variable=man_hwenc_var)
     reg("text", chk_man_hwenc, "hwenc")
     chk_man_hwenc.grid(row=10, column=0, columnspan=4, sticky="w", padx=8, pady=(6, 0))
@@ -1095,8 +1218,11 @@ def build_shorts_tab(nb):
     heading.grid(row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 8))
 
     video_var = tk.StringVar()
+    reg_setting("shorts.video", "var", video_var)
     outdir_var = tk.StringVar(value=os.path.join(SCRIPT_DIR, "output"))
+    reg_setting("shorts.outdir", "var", outdir_var)
     name_var = tk.StringVar()
+    reg_setting("shorts.name", "var", name_var)
 
     # 영상 파일
     _label(frame, "man_video", row=1, column=0, sticky="w", **pad)
@@ -1138,6 +1264,7 @@ def build_shorts_tab(nb):
                           insertbackground="#e0e0e0", relief="flat",
                           font=("Consolas", 10), wrap="none")
     ranges_text.insert("1.0", _t("shorts_ranges_example"))
+    reg_setting("shorts.ranges", "text", ranges_text)
     ranges_text.grid(row=5, column=0, columnspan=3, sticky="ew", padx=12, pady=(2, 6))
 
     # 옵션
@@ -1151,8 +1278,10 @@ def build_shorts_tab(nb):
     mode_combo = ttk.Combobox(opt, values=_t("shorts_mode_values"), width=18, state="readonly")
     mode_combo.current(0)  # smart (기본값)
     reg("combo", (mode_combo, "shorts_mode_values"), "shorts_mode_values")
+    reg_setting("shorts.mode", "combo", mode_combo)
     mode_combo.grid(row=0, column=1, sticky="w", pady=3)
     fontsize_var = tk.StringVar(value="54")
+    reg_setting("shorts.font_size", "var", fontsize_var)
     _label(opt, "shorts_font_size", row=0, column=2, sticky="w", padx=(16, 4), pady=3)
     ttk.Entry(opt, textvariable=fontsize_var, width=6).grid(row=0, column=3, sticky="w", pady=3)
     _label(opt, "shorts_mode_hint", row=1, column=0, columnspan=4, sticky="w", padx=(8, 4), pady=(0, 3))
@@ -1161,28 +1290,34 @@ def build_shorts_tab(nb):
     subpos_combo = ttk.Combobox(opt, values=_t("shorts_sub_pos_values"), width=12, state="readonly")
     subpos_combo.current(0)  # bottom
     reg("combo", (subpos_combo, "shorts_sub_pos_values"), "shorts_sub_pos_values")
+    reg_setting("shorts.sub_pos", "combo", subpos_combo)
     subpos_combo.grid(row=2, column=1, sticky="w", pady=3)
     _label(opt, "font", row=2, column=2, sticky="w", padx=(16, 4), pady=3)
     font_combo = ttk.Combobox(opt, values=_t("font_values"), width=12, state="readonly")
     font_combo.current(0)  # Paperlogy default
     reg("combo", (font_combo, "font_values"), "font_values")
+    reg_setting("shorts.font", "combo", font_combo)
     font_combo.grid(row=2, column=3, sticky="w", pady=3)
 
     subs_var = tk.BooleanVar(value=False)
+    reg_setting("shorts.subs", "var", subs_var)
     chk_subs = ttk.Checkbutton(opt, text=_t("shorts_subtitles"), variable=subs_var)
     reg("text", chk_subs, "shorts_subtitles")
     chk_subs.grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 3))
 
     shorts_hwenc_var = tk.BooleanVar(value=True)
+    reg_setting("shorts.hwenc", "var", shorts_hwenc_var)
     chk_shorts_hwenc = ttk.Checkbutton(opt, text=_t("hwenc"), variable=shorts_hwenc_var)
     reg("text", chk_shorts_hwenc, "hwenc")
     chk_shorts_hwenc.grid(row=3, column=2, columnspan=2, sticky="w", padx=8, pady=(6, 3))
 
     lang_var = tk.StringVar(value="ko")
+    reg_setting("shorts.language", "var", lang_var)
     _label(opt, "model", row=4, column=0, sticky="w", padx=(8, 4), pady=3)
     model_combo = ttk.Combobox(opt, values=_t("model_values"), width=16, state="readonly")
     model_combo.current(2)  # small
     reg("combo", (model_combo, "model_values"), "model_values")
+    reg_setting("shorts.model", "combo", model_combo)
     model_combo.grid(row=4, column=1, sticky="w", pady=3)
     _label(opt, "language", row=4, column=2, sticky="w", padx=(16, 4), pady=3)
     ttk.Entry(opt, textvariable=lang_var, width=6).grid(row=4, column=3, sticky="w", pady=3)
@@ -1304,12 +1439,19 @@ def build_finalize_tab(nb):
                        command=lambda: var.set("")).pack(side="left", padx=(4, 0))
 
     video_var = tk.StringVar()
+    reg_setting("fin.video", "var", video_var)
     srt_var = tk.StringVar()
+    reg_setting("fin.srt", "var", srt_var)
     thumb_var = tk.StringVar()
+    reg_setting("fin.thumb", "var", thumb_var)
     intro_video_var = tk.StringVar()
+    reg_setting("fin.intro_video", "var", intro_video_var)
     outro_video_var = tk.StringVar()
+    reg_setting("fin.outro_video", "var", outro_video_var)
     bgm_var = tk.StringVar()
+    reg_setting("fin.bgm", "var", bgm_var)
     out_var = tk.StringVar()
+    reg_setting("fin.out", "var", out_var)
 
     browse_row(0, "video", video_var, "dlg_video", vid_types)
     browse_row(1, "srt", srt_var, "dlg_srt",
@@ -1354,11 +1496,17 @@ def build_finalize_tab(nb):
     opt.columnconfigure(3, weight=1)
 
     intro_var = tk.BooleanVar(value=True)
+    reg_setting("fin.intro", "var", intro_var)
     cover_var = tk.BooleanVar(value=True)
+    reg_setting("fin.cover", "var", cover_var)
     burn_var = tk.BooleanVar(value=True)
+    reg_setting("fin.burn", "var", burn_var)
     intro_sec_var = tk.StringVar(value="2.5")
+    reg_setting("fin.intro_sec", "var", intro_sec_var)
     font_size_var = tk.StringVar(value="24")
+    reg_setting("fin.font_size", "var", font_size_var)
     bgm_volume_var = tk.StringVar(value="0.25")
+    reg_setting("fin.bgm_volume", "var", bgm_volume_var)
 
     chk_intro = ttk.Checkbutton(opt, text=_t("opt_intro"), variable=intro_var)
     reg("text", chk_intro, "opt_intro")
@@ -1376,6 +1524,7 @@ def build_finalize_tab(nb):
     font_combo = ttk.Combobox(opt, values=_t("font_values"), width=12, state="readonly")
     font_combo.current(0)  # Paperlogy default
     reg("combo", (font_combo, "font_values"), "font_values")
+    reg_setting("fin.font", "combo", font_combo)
     font_combo.grid(row=2, column=1, sticky="w", pady=3)
 
     chk_burn = ttk.Checkbutton(opt, text=_t("opt_burn"), variable=burn_var)
@@ -1383,11 +1532,13 @@ def build_finalize_tab(nb):
     chk_burn.grid(row=3, column=0, columnspan=2, sticky="w", padx=8, pady=3)
 
     loudnorm_var = tk.BooleanVar(value=False)
+    reg_setting("fin.loudnorm", "var", loudnorm_var)
     chk_loudnorm = ttk.Checkbutton(opt, text=_t("opt_loudnorm"), variable=loudnorm_var)
     reg("text", chk_loudnorm, "opt_loudnorm")
     chk_loudnorm.grid(row=3, column=2, columnspan=2, sticky="w", padx=(16, 4), pady=3)
 
     final_hwenc_var = tk.BooleanVar(value=True)
+    reg_setting("fin.hwenc", "var", final_hwenc_var)
     chk_final_hwenc = ttk.Checkbutton(opt, text=_t("hwenc"), variable=final_hwenc_var)
     reg("text", chk_final_hwenc, "hwenc")
     chk_final_hwenc.grid(row=4, column=2, columnspan=2, sticky="w", padx=(16, 4), pady=3)
@@ -1397,6 +1548,7 @@ def build_finalize_tab(nb):
 
     # 채널 마크(워터마크) 이미지 (선택) — 본영상에만 새겨진다
     watermark_var = tk.StringVar(value="")
+    reg_setting("fin.watermark", "var", watermark_var)
     _label(opt, "watermark", row=5, column=0, sticky="w", padx=(8, 4), pady=(6, 3))
     ttk.Entry(opt, textvariable=watermark_var, width=28).grid(
         row=5, column=1, columnspan=2, sticky="ew", pady=(6, 3))
@@ -1417,6 +1569,7 @@ def build_finalize_tab(nb):
     wmpos_combo = ttk.Combobox(opt, values=_t("wm_pos_values"), width=10, state="readonly")
     wmpos_combo.current(1)  # tr = 우상단
     reg("combo", (wmpos_combo, "wm_pos_values"), "wm_pos_values")
+    reg_setting("fin.wm_pos", "combo", wmpos_combo)
     wmpos_combo.grid(row=6, column=1, sticky="w", pady=(0, 3))
     _label(opt, "watermark_hint", row=6, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 3))
 
@@ -1424,11 +1577,13 @@ def build_finalize_tab(nb):
     wmkey_combo = ttk.Combobox(opt, values=_t("wm_colorkey_values"), width=10, state="readonly")
     wmkey_combo.current(0)  # 없음
     reg("combo", (wmkey_combo, "wm_colorkey_values"), "wm_colorkey_values")
+    reg_setting("fin.wm_colorkey", "combo", wmkey_combo)
     wmkey_combo.grid(row=7, column=1, sticky="w", pady=(0, 3))
     _label(opt, "wm_colorkey_hint", row=7, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(0, 3))
 
     # AI 자동 키워드 (Gemini) — 자막을 분석해 구간별 키워드를 마크 아래 표시
     autolabels_var = tk.BooleanVar(value=False)
+    reg_setting("fin.autolabels", "var", autolabels_var)
     chk_labels = ttk.Checkbutton(opt, text=_t("auto_labels"), variable=autolabels_var)
     reg("text", chk_labels, "auto_labels")
     chk_labels.grid(row=8, column=0, columnspan=2, sticky="w", padx=8, pady=(8, 0))
@@ -1571,10 +1726,15 @@ def build_autoshorts_tab(nb):
     heading.grid(row=0, column=0, columnspan=3, sticky="w", padx=12, pady=(10, 8))
 
     video_var = tk.StringVar()
+    reg_setting("auto.video", "var", video_var)
     outdir_var = tk.StringVar(value=os.path.join(SCRIPT_DIR, "output"))
+    reg_setting("auto.outdir", "var", outdir_var)
     name_var = tk.StringVar()
+    reg_setting("auto.name", "var", name_var)
     count_var = tk.StringVar(value="5")
+    reg_setting("auto.count", "var", count_var)
     clip_len_var = tk.StringVar(value="30")
+    reg_setting("auto.clip_len", "var", clip_len_var)
 
     # 영상 입력 (URL 또는 로컬)
     _label(frame, "url", row=1, column=0, sticky="w", **pad)
@@ -1628,10 +1788,12 @@ def build_autoshorts_tab(nb):
     mode_combo = ttk.Combobox(opt, values=_t("shorts_mode_values"), width=18, state="readonly")
     mode_combo.current(0)  # smart (기본값)
     reg("combo", (mode_combo, "shorts_mode_values"), "shorts_mode_values")
+    reg_setting("auto.mode", "combo", mode_combo)
     mode_combo.grid(row=0, column=1, sticky="w", pady=3)
 
     # 자막 체크박스
     subs_var = tk.BooleanVar(value=False)
+    reg_setting("auto.subs", "var", subs_var)
     chk_subs = ttk.Checkbutton(opt, text=_t("autoshorts_subtitles"), variable=subs_var)
     reg("text", chk_subs, "autoshorts_subtitles")
     chk_subs.grid(row=1, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 3))
@@ -1641,11 +1803,13 @@ def build_autoshorts_tab(nb):
     model_combo = ttk.Combobox(opt, values=_t("model_values"), width=16, state="readonly")
     model_combo.current(2)  # small
     reg("combo", (model_combo, "model_values"), "model_values")
+    reg_setting("auto.model", "combo", model_combo)
     model_combo.grid(row=2, column=1, sticky="w", pady=3)
 
     # 언어
     _label(opt, "autoshorts_language", row=2, column=2, sticky="w", padx=(16, 4), pady=3)
     lang_var = tk.StringVar(value="ko")
+    reg_setting("auto.language", "var", lang_var)
     ttk.Entry(opt, textvariable=lang_var, width=6).grid(row=2, column=3, sticky="w", pady=3)
 
     # 자막 위치
@@ -1653,6 +1817,7 @@ def build_autoshorts_tab(nb):
     subpos_combo = ttk.Combobox(opt, values=_t("shorts_sub_pos_values"), width=12, state="readonly")
     subpos_combo.current(0)  # bottom
     reg("combo", (subpos_combo, "shorts_sub_pos_values"), "shorts_sub_pos_values")
+    reg_setting("auto.sub_pos", "combo", subpos_combo)
     subpos_combo.grid(row=3, column=1, sticky="w", pady=3)
 
     # 글꼴
@@ -1660,21 +1825,25 @@ def build_autoshorts_tab(nb):
     font_combo = ttk.Combobox(opt, values=_t("font_values"), width=12, state="readonly")
     font_combo.current(0)  # Paperlology
     reg("combo", (font_combo, "font_values"), "font_values")
+    reg_setting("auto.font", "combo", font_combo)
     font_combo.grid(row=3, column=3, sticky="w", pady=3)
 
     # 글꼴 크기
     _label(opt, "autoshorts_font_size", row=4, column=0, sticky="w", padx=(8, 4), pady=3)
     fontsize_var = tk.StringVar(value="54")
+    reg_setting("auto.font_size", "var", fontsize_var)
     ttk.Entry(opt, textvariable=fontsize_var, width=6).grid(row=4, column=1, sticky="w", pady=3)
 
     # AI 제목 체크박스
     ai_title_var = tk.BooleanVar(value=False)
+    reg_setting("auto.ai_title", "var", ai_title_var)
     chk_ai = ttk.Checkbutton(opt, text=_t("autoshorts_ai_title"), variable=ai_title_var)
     reg("text", chk_ai, "autoshorts_ai_title")
     chk_ai.grid(row=5, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 3))
 
     # GPU 가속 인코딩
     autoshorts_hwenc_var = tk.BooleanVar(value=True)
+    reg_setting("auto.hwenc", "var", autoshorts_hwenc_var)
     chk_autoshorts_hwenc = ttk.Checkbutton(opt, text=_t("hwenc"), variable=autoshorts_hwenc_var)
     reg("text", chk_autoshorts_hwenc, "hwenc")
     chk_autoshorts_hwenc.grid(row=5, column=2, columnspan=2, sticky="w", padx=8, pady=(6, 3))
@@ -1690,6 +1859,7 @@ def build_autoshorts_tab(nb):
 
     # 채팅 반응 반영
     autoshorts_chat_analysis_var = tk.BooleanVar(value=False)
+    reg_setting("auto.chat_analysis", "var", autoshorts_chat_analysis_var)
     chk_autoshorts_chat_analysis = ttk.Checkbutton(opt, text=_t("chat_analysis"), variable=autoshorts_chat_analysis_var)
     reg("text", chk_autoshorts_chat_analysis, "chat_analysis")
     chk_autoshorts_chat_analysis.grid(row=8, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 0))
@@ -1701,6 +1871,7 @@ def build_autoshorts_tab(nb):
     autoshorts_chat_pos_combo = ttk.Combobox(opt, values=_t("chatpos_values"), state="readonly", width=15)
     autoshorts_chat_pos_combo.current(0)  # 자동 감지
     reg("combo", (autoshorts_chat_pos_combo, "chatpos_values"), "chatpos_values")
+    reg_setting("auto.chat_pos", "combo", autoshorts_chat_pos_combo)
     autoshorts_chat_pos_combo.grid(row=8, column=3, sticky="w", padx=8)
 
     # 로그인 쿠키
@@ -1710,6 +1881,7 @@ def build_autoshorts_tab(nb):
     autoshorts_cookies_combo = ttk.Combobox(opt, values=_t("cookiesbrowser_values"), state="readonly", width=15)
     autoshorts_cookies_combo.current(0)  # 사용 안 함
     reg("combo", (autoshorts_cookies_combo, "cookiesbrowser_values"), "cookiesbrowser_values")
+    reg_setting("auto.cookies", "combo", autoshorts_cookies_combo)
     autoshorts_cookies_combo.grid(row=9, column=1, columnspan=3, sticky="w", padx=8)
 
     # 실행 버튼
@@ -1831,6 +2003,12 @@ def main():
     root.geometry("720x800")
     root.minsize(640, 660)
 
+    # 종료 프로토콜: 설정 저장 후 종료
+    def on_closing():
+        save_settings()
+        root.destroy()
+    root.protocol("WM_DELETE_WINDOW", on_closing)
+
     # STAGE 1: Apply modern theme (sv-ttk dark if available)
     style = ttk.Style(root)
 
@@ -1914,6 +2092,16 @@ def main():
     build_shorts_tab(nb)
     build_autoshorts_tab(nb)
     build_finalize_tab(nb)
+
+    # 모든 탭 빌드 후 설정 복원
+    load_settings()
+
+    # 창 높이 자동 조정 (작업 B)
+    root.update_idletasks()
+    required_height = root.winfo_reqheight()
+    screen_height = root.winfo_screenheight()
+    final_height = min(required_height, int(screen_height * 0.92))
+    root.geometry(f"720x{final_height}+0+40")
 
     # Background update check thread
     def check_for_update():

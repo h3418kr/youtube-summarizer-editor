@@ -304,6 +304,15 @@ STRINGS = {
         "teaser_cuts_label": "티저 컷 수",
         "teaser_cuts": ["2개", "3개", "4개"],
         "teaser_sec": "티저 컷 길이(초)",
+        "impact_subs": "예능 자막 (소리 지르는 순간 강조)",
+        "impact_level": "빈도",
+        "impact_level_values": ["적게", "보통", "많이"],
+        "impact_size": "크기",
+        "impact_color": "색상",
+        "impact_color_values": ["노랑", "흰색", "빨강", "하늘색"],
+        "impact_pos": "위치",
+        "impact_pos_values": ["중앙", "중앙 위", "하단 위"],
+        "impact_pop": "팝 효과",
         "btn_finalize": "완성 영상 만들기",
         # file dialog titles
         "dlg_outdir": "출력 폴더 선택",
@@ -490,6 +499,15 @@ STRINGS = {
         "teaser_cuts_label": "Teaser cuts",
         "teaser_cuts": ["2 cuts", "3 cuts", "4 cuts"],
         "teaser_sec": "Teaser cut length (s)",
+        "impact_subs": "Impact captions (emphasize shouting moments)",
+        "impact_level": "Frequency",
+        "impact_level_values": ["Few", "Some", "Many"],
+        "impact_size": "Size",
+        "impact_color": "Color",
+        "impact_color_values": ["Yellow", "White", "Red", "Cyan"],
+        "impact_pos": "Position",
+        "impact_pos_values": ["Center", "Upper", "Lower"],
+        "impact_pop": "Pop effect",
         "btn_finalize": "Make Final Video",
         # file dialog titles
         "dlg_outdir": "Select output folder",
@@ -1554,6 +1572,50 @@ def build_finalize_tab(nb):
     _label(opt, "bgm_volume", row=4, column=0, sticky="w", padx=(8, 4), pady=3)
     ttk.Entry(opt, textvariable=bgm_volume_var, width=6).grid(row=4, column=1, sticky="w", pady=3)
 
+    # 예능 자막 (row 8)
+    impact_var = tk.BooleanVar(value=False)
+    reg_setting("fin.impact", "var", impact_var)
+    chk_impact = ttk.Checkbutton(opt, text=_t("impact_subs"), variable=impact_var)
+    reg("text", chk_impact, "impact_subs")
+    chk_impact.grid(row=8, column=0, columnspan=2, sticky="w", padx=8, pady=(8, 0))
+    _label(opt, "impact_level", row=8, column=2, sticky="w", padx=(16, 4), pady=(8, 0))
+    impact_level_var = tk.StringVar(value="mid")
+    impact_level_combo = ttk.Combobox(opt, values=_t("impact_level_values"), width=8, state="readonly")
+    impact_level_combo.current(1)  # 보통
+    reg("combo", (impact_level_combo, "impact_level_values"), "impact_level_values")
+    reg_setting("fin.impact_level", "combo", impact_level_combo)
+    impact_level_combo.grid(row=8, column=3, sticky="w", pady=(8, 0))
+
+    # 임팩트 상세 옵션 (row 9)
+    _label(opt, "impact_size", row=9, column=0, sticky="w", padx=(8, 4), pady=3)
+    impact_size_var = tk.StringVar(value="64")
+    impact_size_entry = ttk.Entry(opt, textvariable=impact_size_var, width=6)
+    reg_setting("fin.impact_size", "var", impact_size_var)
+    impact_size_entry.grid(row=9, column=1, sticky="w", padx=(8, 4), pady=3)
+
+    _label(opt, "impact_color", row=9, column=2, sticky="w", padx=(16, 4), pady=3)
+    impact_color_var = tk.StringVar(value="yellow")
+    impact_color_combo = ttk.Combobox(opt, values=_t("impact_color_values"), width=8, state="readonly")
+    impact_color_combo.current(0)  # 노랑
+    reg("combo", (impact_color_combo, "impact_color_values"), "impact_color_values")
+    reg_setting("fin.impact_color", "combo", impact_color_combo)
+    impact_color_combo.grid(row=9, column=3, sticky="w", pady=3)
+
+    # 임팩트 상세 옵션 (row 10)
+    _label(opt, "impact_pos", row=10, column=0, sticky="w", padx=(8, 4), pady=3)
+    impact_pos_var = tk.StringVar(value="center")
+    impact_pos_combo = ttk.Combobox(opt, values=_t("impact_pos_values"), width=8, state="readonly")
+    impact_pos_combo.current(0)  # 중앙
+    reg("combo", (impact_pos_combo, "impact_pos_values"), "impact_pos_values")
+    reg_setting("fin.impact_pos", "combo", impact_pos_combo)
+    impact_pos_combo.grid(row=10, column=1, sticky="w", padx=(8, 4), pady=3)
+
+    impact_pop_var = tk.BooleanVar(value=True)
+    reg_setting("fin.impact_pop", "var", impact_pop_var)
+    chk_impact_pop = ttk.Checkbutton(opt, text=_t("impact_pop"), variable=impact_pop_var)
+    reg("text", chk_impact_pop, "impact_pop")
+    chk_impact_pop.grid(row=10, column=2, columnspan=2, sticky="w", padx=(16, 4), pady=3)
+
     # 채널 마크(워터마크) 이미지 (선택) — 본영상에만 새겨진다
     watermark_var = tk.StringVar(value="")
     reg_setting("fin.watermark", "var", watermark_var)
@@ -1594,34 +1656,34 @@ def build_finalize_tab(nb):
     reg_setting("fin.autolabels", "var", autolabels_var)
     chk_labels = ttk.Checkbutton(opt, text=_t("auto_labels"), variable=autolabels_var)
     reg("text", chk_labels, "auto_labels")
-    chk_labels.grid(row=8, column=0, columnspan=2, sticky="w", padx=8, pady=(8, 0))
-    _label(opt, "auto_labels_hint", row=8, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(8, 0))
+    chk_labels.grid(row=11, column=0, columnspan=2, sticky="w", padx=8, pady=(8, 0))
+    _label(opt, "auto_labels_hint", row=11, column=2, columnspan=2, sticky="w", padx=(8, 4), pady=(8, 0))
 
     # 인트로 티저 자동
     teaser_var = tk.BooleanVar(value=False)
     reg_setting("fin.teaser", "var", teaser_var)
     chk_teaser = ttk.Checkbutton(opt, text=_t("teaser"), variable=teaser_var)
     reg("text", chk_teaser, "teaser")
-    chk_teaser.grid(row=9, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 0))
-    _label(opt, "teaser_cuts_label", row=9, column=2, sticky="w", padx=(16, 4), pady=(6, 0))
+    chk_teaser.grid(row=12, column=0, columnspan=2, sticky="w", padx=8, pady=(6, 0))
+    _label(opt, "teaser_cuts_label", row=12, column=2, sticky="w", padx=(16, 4), pady=(6, 0))
     teaser_cuts_combo = ttk.Combobox(opt, values=_t("teaser_cuts"), width=8, state="readonly")
     teaser_cuts_combo.current(1)  # 기본 3개
     reg("combo", (teaser_cuts_combo, "teaser_cuts"), "teaser_cuts")
     reg_setting("fin.teaser_cuts", "combo", teaser_cuts_combo)
-    teaser_cuts_combo.grid(row=9, column=3, sticky="w", pady=(6, 0))
+    teaser_cuts_combo.grid(row=12, column=3, sticky="w", pady=(6, 0))
 
     # 티저 컷 길이(초)
-    _label(opt, "teaser_sec", row=10, column=0, sticky="w", padx=(8, 4), pady=(4, 0))
+    _label(opt, "teaser_sec", row=13, column=0, sticky="w", padx=(8, 4), pady=(4, 0))
     teaser_sec_var = tk.StringVar(value="1.5")
     teaser_sec_entry = ttk.Entry(opt, textvariable=teaser_sec_var, width=6)
     reg_setting("fin.teaser_sec", "var", teaser_sec_var)
-    teaser_sec_entry.grid(row=10, column=1, sticky="w", padx=(8, 4), pady=(4, 0))
+    teaser_sec_entry.grid(row=13, column=1, sticky="w", padx=(8, 4), pady=(4, 0))
 
-    _label(opt, "gemini_key", row=11, column=0, sticky="w", padx=(8, 4), pady=(0, 3))
+    _label(opt, "gemini_key", row=14, column=0, sticky="w", padx=(8, 4), pady=(0, 3))
     gemini_key_var = tk.StringVar(value=load_gemini_key())
     ttk.Entry(opt, textvariable=gemini_key_var, width=28, show="•").grid(
-        row=11, column=1, columnspan=2, sticky="ew", pady=(0, 3))
-    _label(opt, "gemini_key_hint", row=11, column=3, sticky="w", padx=(8, 4), pady=(0, 3))
+        row=14, column=1, columnspan=2, sticky="ew", pady=(0, 3))
+    _label(opt, "gemini_key_hint", row=14, column=3, sticky="w", padx=(8, 4), pady=(0, 3))
 
     # 실행 버튼
     btn_label_var = tk.StringVar(value=_t("btn_finalize"))
@@ -1699,6 +1761,29 @@ def build_finalize_tab(nb):
             except ValueError:
                 teaser_sec_val = 1.5
             cmd += ["--teaser-sec", f"{teaser_sec_val}"]
+
+        # 예능 자막 (임팩트)
+        if impact_var.get() and burn_var.get() and srt:
+            level_idx = max(impact_level_combo.current(), 0)
+            level_values = ["low", "mid", "high"]
+            cmd += ["--impact-subs", level_values[level_idx]]
+            try:
+                impact_size_val = int(impact_size_var.get().strip() or "64")
+                impact_size_val = max(24, min(120, impact_size_val))  # 24~120 클램프
+            except ValueError:
+                impact_size_val = 64
+            cmd += ["--impact-size", str(impact_size_val)]
+
+            color_idx = max(impact_color_combo.current(), 0)
+            color_values = ["yellow", "white", "red", "cyan"]
+            cmd += ["--impact-color", color_values[color_idx]]
+
+            pos_idx = max(impact_pos_combo.current(), 0)
+            pos_values = ["center", "top", "bottom"]
+            cmd += ["--impact-pos", pos_values[pos_idx]]
+
+            if not impact_pop_var.get():
+                cmd += ["--no-impact-pop"]
 
         # AI 자동 키워드 (Gemini)
         gkey = gemini_key_var.get().strip()

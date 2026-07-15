@@ -241,6 +241,43 @@ def _parse_time_tok(tok: str) -> float:
 _TIME_RANGE = re.compile(r'(\d[\d:.,]*)\s*[-~]\s*(\d[\d:.,]*)')
 
 
+def parse_srt(srt_path: str):
+    """SRT 파일을 파싱해 [(start_sec, end_sec, text), ...] 반환.
+
+    본편 타임라인 기준 시간(초). 본편이 인트로/아웃트로를 포함하면
+    finalize 호출 시 adjust_srt_timing으로 조정해야 한다.
+    """
+    cues = []
+    try:
+        with open(srt_path, "r", encoding="utf-8") as f:
+            text = f.read()
+    except Exception:
+        return cues
+
+    # SRT 형식: idx \n HH:MM:SS,mmm --> HH:MM:SS,mmm \n text \n \n
+    pattern = re.compile(
+        r'(\d+)\s*\n'
+        r'(\d{1,2}):(\d{2}):(\d{2})[,.](\d{3})\s*-->\s*'
+        r'(\d{1,2}):(\d{2}):(\d{2})[,.](\d{3})\s*\n'
+        r'(.*?)(?=\n\s*\n|\Z)',
+        re.DOTALL
+    )
+
+    for m in pattern.finditer(text):
+        try:
+            h1, m1, s1, ms1 = int(m.group(2)), int(m.group(3)), int(m.group(4)), int(m.group(5))
+            h2, m2, s2, ms2 = int(m.group(6)), int(m.group(7)), int(m.group(8)), int(m.group(9))
+            start = h1 * 3600 + m1 * 60 + s1 + ms1 / 1000.0
+            end = h2 * 3600 + m2 * 60 + s2 + ms2 / 1000.0
+            txt = m.group(10).strip()
+            if end > start:
+                cues.append((start, end, txt))
+        except Exception:
+            pass
+
+    return cues
+
+
 def _parse_label_lines(text: str):
     """'시작-끝|키워드' 형식의 여러 줄을 (start, end, keyword) 리스트로.
 
@@ -380,12 +417,79 @@ def _build_label_ass(w, h, labels, anchor, x, y, font, size):
     return head + "\n".join(lines) + "\n"
 
 
+def _build_sub_ass(w, h, cues, impact_cues_set, font, size,
+                    impact_size, impact_color, impact_pos, impact_pop):
+    """SRT cues를 ASS로 변환. 임팩트 cue는 Impact 스타일.
+
+    Args:
+        cues: [(start_sec, end_sec, text), ...]
+        impact_cues_set: set of (start_sec, end_sec, text) 임팩트 선정된 것들
+        impact_color: "&H0000FFFF" (노랑) 형식, None이면 스킵
+    """
+    # ASS 헤더
+    head = (
+        "[Script Info]\nScriptType: v4.00+\n"
+        f"PlayResX: {w}\nPlayResY: {h}\n"
+        "ScaledBorderAndShadow: yes\nWrapStyle: 2\n\n"
+        "[V4+ Styles]\n"
+        "Format: Name, Fontname, Fontsize, PrimaryColour, OutlineColour, "
+        "BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, "
+        "Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, "
+        "MarginL, MarginR, MarginV, Encoding\n"
+    )
+
+    # 기본 스타일
+    head += (f"Style: Default,{font},{size},&H00FFFFFF,&H90000000,&H00000000,"
+             f"0,0,0,0,100,100,0,0,1,2,1,2,10,10,28,1\n")
+
+    # Impact 스타일 (임팩트 색상 지정된 경우만)
+    if impact_color:
+        # 위치별 Alignment (ASS: 1-9 키패드)
+        # center: 5, top: 8, bottom: 2
+        align_map = {"center": "5", "top": "8", "bottom": "2"}
+        alignment = align_map.get(impact_pos, "5")
+        margin_v = {"center": "0", "top": "180", "bottom": "220"}[impact_pos]
+        head += (f"Style: Impact,{font},{impact_size},{impact_color},&H00000000,&H00000000,"
+                 f"1,0,0,0,100,100,0,0,1,5,2,{alignment},10,10,{margin_v},1\n")
+
+    head += "\n[Events]\n"
+    head += "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n"
+
+    # 각 cue별 이벤트 생성
+    events = []
+    for start, end, text in cues:
+        # 텍스트 이스케이프
+        t = (str(text).replace("\\", "").replace("{", "(").replace("}", ")")
+             .replace("\r", "").replace("\n", r"\N"))
+
+        is_impact = (start, end, text) in impact_cues_set
+        if is_impact and impact_color:
+            # Impact 스타일 + 팝 효과
+            if impact_pop:
+                # 팝 효과: 120ms에 걸쳐 40% -> 100%로 확대
+                text_with_effect = f"{{\\fscx40\\fscy40\\t(0,120,\\fscx100\\fscy100)}}{t}"
+            else:
+                text_with_effect = t
+            style = "Impact"
+        else:
+            # 기본 스타일 (임팩트가 아니거나 impact_color가 없으면 Default)
+            style = "Default"
+            text_with_effect = t
+
+        events.append(f"Dialogue: 0,{_ass_ts(start)},{_ass_ts(end)},{style},,0,0,0,,{text_with_effect}")
+
+    return head + "\n".join(events) + "\n"
+
+
 def render_main(video: str, srt_name: str, w: int, h: int, fps: str,
                 out_ts: str, cwd: str, font: str, font_size: int,
                 burn_sub: bool, watermark: str = "", wm_pos: str = "tr",
                 wm_scale: float = 0.12, wm_margin: int = 24,
                 wm_colorkey: str = "", labels=None,
-                label_font: str = "Paperlogy", label_size: int = 44) -> None:
+                label_font: str = "Paperlogy", label_size: int = 44,
+                impact_cues=None, impact_size: int = 64,
+                impact_color: str = "", impact_pos: str = "center",
+                impact_pop: bool = True) -> None:
     """본편을 규격 통일 + (선택)자막 하드섭 + (선택)채널 마크 오버레이 하여 TS 로.
 
     마크는 본편에만 들어간다(인트로/아웃트로 TS 는 손대지 않으므로 자동으로
@@ -394,6 +498,8 @@ def render_main(video: str, srt_name: str, w: int, h: int, fps: str,
 
     wm_colorkey 를 주면(예: black/white/0xRRGGBB) 마크 이미지에서 그 배경색을
     투명 처리(colorkey)한 뒤 얹는다. 배경이 단색인 로고를 투명 없이 써도 된다.
+
+    impact_cues: 임팩트로 선정된 cues [(start, end, text), ...]. None이면 무시.
     """
     labels = [(s, e, t) for (s, e, t) in (labels or []) if str(t).strip()]
     m = int(wm_margin)
@@ -407,10 +513,19 @@ def render_main(video: str, srt_name: str, w: int, h: int, fps: str,
     # 1) base: 규격 통일 + (선택)말소리 자막 하드섭
     base = f"[0:v]scale={w}:{h},setsar=1"
     if burn_sub and srt_name:
-        style = (f"FontName={font},FontSize={font_size},"
-                 f"PrimaryColour=&H00FFFFFF,OutlineColour=&H90000000,"
-                 f"BorderStyle=1,Outline=2,Shadow=1,MarginV=28")
-        base += f",subtitles={srt_name}:force_style='{style}':fontsdir=."
+        # SRT를 파싱해 ASS로 변환 (임팩트 처리 포함)
+        srt_path = os.path.join(cwd, srt_name)
+        cues = parse_srt(srt_path)
+        impact_cues_set = set(impact_cues or [])
+
+        # ASS 생성
+        ass_content = _build_sub_ass(w, h, cues, impact_cues_set, font, font_size,
+                                     impact_size, impact_color, impact_pos, impact_pop)
+        ass_path = os.path.join(cwd, "subs.ass")
+        with open(ass_path, "w", encoding="utf-8") as f:
+            f.write(ass_content)
+
+        base += f",subtitles=subs.ass:fontsdir=."
     fc_parts.append(base + "[base]")
     cur = "[base]"
 
@@ -567,6 +682,92 @@ def _extract_teaser_clips(video: str, w: int, h: int, fps: str, tmpdir: str,
     return teaser_files
 
 
+def select_impact_cues(cues, energy_arr, voice_arr, window_sec, level,
+                       min_gap=8.0, max_len=6.0):
+    """에너지 기반으로 임팩트 줄 선정.
+
+    Args:
+        cues: [(start_sec, end_sec, text), ...]. 본편 타임라인.
+        energy_arr: 전체 에너지 배열 (compute_energy 결과)
+        voice_arr: 음성 에너지 배열 (compute_voice_energy 결과)
+        window_sec: 에너지 계산 윈도우 크기(초)
+        level: "low"(5%) / "mid"(10%) / "high"(20%)
+        min_gap: 선정된 것끼리 이만큼 미만 간격이면 점수 낮은 쪽 제외(초)
+        max_len: 이보다 긴 cue는 제외(초)
+
+    Returns:
+        [(start_sec, end_sec, text), ...] 임팩트로 선정된 줄들 (시간순)
+    """
+    # 점수 계산: combined = 0.5*energy_z + 1.0*voice_z
+    if len(energy_arr) == 0:
+        return []
+
+    # z-score 정규화
+    energy_mean = np.mean(energy_arr)
+    energy_std = np.std(energy_arr)
+    if energy_std < 1e-6:
+        energy_z = np.zeros_like(energy_arr)
+    else:
+        energy_z = (energy_arr - energy_mean) / energy_std
+
+    voice_z = np.zeros_like(energy_arr)
+    if len(voice_arr) > 0:
+        voice_mean = np.mean(voice_arr)
+        voice_std = np.std(voice_arr)
+        min_len = min(len(energy_arr), len(voice_arr))
+        if voice_std > 1e-6:
+            voice_z[:min_len] = (voice_arr[:min_len] - voice_mean) / voice_std
+
+    combined = 0.5 * energy_z + 1.0 * voice_z
+
+    # 각 cue의 점수 = cue 구간 내 combined 최댓값
+    cue_scores = []
+    for start, end, text in cues:
+        # 제외: 길이 초과 or 텍스트 40자 초과
+        if end - start > max_len:
+            continue
+        if len(text.replace("\n", "").replace("\r", "")) > 40:
+            continue
+
+        # 구간 내 최고 점수
+        start_idx = int(start / window_sec)
+        end_idx = int(end / window_sec) + 1
+        start_idx = max(0, min(start_idx, len(combined) - 1))
+        end_idx = max(start_idx + 1, min(end_idx, len(combined)))
+
+        max_score = float(np.max(combined[start_idx:end_idx])) if start_idx < end_idx else 0.0
+        cue_scores.append((max_score, start, end, text))
+
+    if not cue_scores:
+        return []
+
+    # 상위 N% 선정 (level에 따라)
+    level_ratio = {"low": 0.05, "mid": 0.10, "high": 0.20}.get(level, 0.10)
+    n_select = max(1, int(len(cue_scores) * level_ratio))
+    sorted_cues = sorted(cue_scores, key=lambda x: x[0], reverse=True)[:n_select]
+    sorted_cues = sorted(sorted_cues, key=lambda x: x[1])  # 시간 순서대로
+
+    # min_gap 유지 (그리디: 점수 높은 순으로 채택, 기존 채택분과 가까우면 제외)
+    result = []
+    for score, start, end, text in sorted(sorted_cues, key=lambda x: x[0], reverse=True):
+        too_close = any(
+            min(abs(start - prev_end), abs(prev_start - end)) < min_gap
+            for _, prev_start, prev_end, _ in result
+        )
+        if not too_close:
+            result.append((score, start, end, text))
+    result.sort(key=lambda x: x[1])  # 시간 순서대로
+
+    # 로그: "임팩트 자막 N줄: 12.4s '아니 이게 왜 죽어', ..."
+    print(f"  임팩트 자막 {len(result)}줄:", end="", flush=True)
+    for _, start, end, text in result:
+        text_short = text.replace("\n", " ")[:40]
+        print(f" {start:.1f}s '{text_short}'", end="", flush=True)
+    print("", flush=True)
+
+    return [(s, e, t) for _, s, e, t in result]
+
+
 def get_video_duration(video_path: str) -> float:
     """ffprobe로 영상 길이를 초(float) 단위로 구한다."""
     try:
@@ -641,7 +842,10 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
              wm_colorkey: str = "", auto_labels: bool = False,
              gemini_key: str = "", gemini_model: str = GEMINI_MODEL,
              label_size: int = 44, loudnorm: bool = False,
-             teaser_cuts: int = 0, teaser_sec: float = 1.5) -> None:
+             teaser_cuts: int = 0, teaser_sec: float = 1.5,
+             impact_subs: str = "none", impact_size: int = 64,
+             impact_color: str = "yellow", impact_pos: str = "center",
+             impact_pop: bool = True) -> None:
     video = os.path.abspath(video)
     out_path = os.path.abspath(out_path)
     os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
@@ -705,9 +909,38 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
             ts_files.append(intro_ts)
 
         # 3) 본편 (자막 하드섭 + 채널 마크 + AI 키워드는 여기서만 = 본영상에만)
+        impact_cues = []
+        impact_color_hex = ""
+
+        # 임팩트 줄 선정 (impact_subs가 지정되고 burn and srt인 경우)
+        if impact_subs != "none" and burn and srt and os.path.isfile(srt):
+            print(f"[임팩트 자막] 오디오 에너지 분석 중...", flush=True)
+            # 오디오 추출
+            wav_path = os.path.join(tmp, "impact_audio.wav")
+            extract_audio(video, wav_path)
+
+            # 에너지 계산
+            energy_arr, window_sec = compute_energy(wav_path)
+            voice_arr, _ = compute_voice_energy(wav_path, tmp)
+
+            # 임팩트 줄 선정
+            cues = parse_srt(srt)
+            impact_cues = select_impact_cues(cues, energy_arr, voice_arr, window_sec,
+                                            impact_subs, min_gap=8.0, max_len=6.0)
+
+            # 색상 코드 변환 (ASS &HAABBGGRR)
+            color_map = {
+                "yellow": "&H0000FFFF",
+                "white": "&H00FFFFFF",
+                "red": "&H000000FF",
+                "cyan": "&H00FFFF00"
+            }
+            impact_color_hex = color_map.get(impact_color, "&H0000FFFF")
+
         wm_note = f" + 마크({WM_POSITIONS.get(wm_pos, wm_pos)})" if watermark else ""
         lb_note = f" + AI키워드({len(labels)})" if labels else ""
-        print(f"[본편] 처리{' + 자막 새겨넣기' if (burn and srt) else ''}{wm_note}{lb_note}...",
+        impact_note = f" + 임팩트자막({len(impact_cues)})" if impact_cues else ""
+        print(f"[본편] 처리{' + 자막 새겨넣기' if (burn and srt) else ''}{wm_note}{lb_note}{impact_note}...",
               flush=True)
         main_ts = os.path.join(tmp, "main.ts")
         srt_name = ""
@@ -719,7 +952,10 @@ def finalize(video: str, srt: str, thumb: str, out_path: str,
         render_main(video, srt_name, w, h, fps, main_ts, tmp, font, font_size,
                     burn_sub=bool(burn and srt), watermark=watermark,
                     wm_pos=wm_pos, wm_scale=wm_scale, wm_margin=wm_margin,
-                    wm_colorkey=wm_colorkey, labels=labels, label_size=label_size)
+                    wm_colorkey=wm_colorkey, labels=labels, label_size=label_size,
+                    impact_cues=impact_cues, impact_size=impact_size,
+                    impact_color=impact_color_hex, impact_pos=impact_pos,
+                    impact_pop=impact_pop)
 
         # 3-2) 배경음악: 본편에만 섞는다(인트로/아웃트로/썸네일엔 안 깔림).
         if bgm and has_audio(main_ts):
@@ -816,7 +1052,17 @@ def main():
                     help="인트로 티저: 본편에서 추출할 하이라이트 컷 수 (0=끔, 2~4 권장)")
     ap.add_argument("--teaser-sec", type=float, default=1.5,
                     help="티저 컷 하나의 길이(초) (기본 1.5, 범위 0.5~5.0)")
-    ap.set_defaults(intro=True, cover=True, burn=True)
+    ap.add_argument("--impact-subs", choices=["none", "low", "mid", "high"], default="none",
+                    help="예능 자막(임팩트): none(끔), low(상위 5%), mid(상위 10%), high(상위 20%)")
+    ap.add_argument("--impact-size", type=int, default=64,
+                    help="임팩트 자막 크기 (픽셀, 기본 64, 범위 24~120)")
+    ap.add_argument("--impact-color", choices=["yellow", "white", "red", "cyan"], default="yellow",
+                    help="임팩트 자막 색상 (기본 yellow)")
+    ap.add_argument("--impact-pos", choices=["center", "top", "bottom"], default="center",
+                    help="임팩트 자막 위치 (기본 center)")
+    ap.add_argument("--no-impact-pop", dest="impact_pop", action="store_false",
+                    help="임팩트 자막 팝 효과 끄기 (기본 켜짐)")
+    ap.set_defaults(intro=True, cover=True, burn=True, impact_pop=True)
     args = ap.parse_args()
 
     if args.cpu_encode:
@@ -850,6 +1096,9 @@ def main():
         print(f"ERROR: 마크 이미지를 찾을 수 없습니다: {watermark}")
         sys.exit(1)
 
+    # impact_size를 24~120으로 클램프
+    impact_size = max(24, min(120, args.impact_size))
+
     finalize(args.video, srt, thumb, args.output,
              intro_sec=args.intro_sec, add_intro=args.intro,
              cover=args.cover, burn=args.burn,
@@ -862,7 +1111,10 @@ def main():
              auto_labels=args.auto_labels, gemini_key=args.gemini_key,
              gemini_model=args.gemini_model, label_size=args.label_size,
              loudnorm=args.loudnorm, teaser_cuts=args.teaser,
-             teaser_sec=args.teaser_sec)
+             teaser_sec=args.teaser_sec,
+             impact_subs=args.impact_subs, impact_size=impact_size,
+             impact_color=args.impact_color, impact_pos=args.impact_pos,
+             impact_pop=args.impact_pop)
 
 
 if __name__ == "__main__":

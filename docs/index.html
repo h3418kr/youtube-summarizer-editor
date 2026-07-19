@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="방송 다시보기를 넣으면 하이라이트 요약본이 나오는 무료 프로그램. 자막 자동 생성, 소리와 채팅 반응 분석, 음성 피크 강조 자막 지원.">
+  <meta property="og:title" content="라이브 하이라이트 메이커 — 방송 다시보기를 10분 하이라이트로">
+  <meta property="og:description" content="무료·오픈소스·무설치. 3시간 방송을 10분 하이라이트로 변환. Windows 64bit.">
+  <title>라이브 하이라이트 메이커 — 방송 다시보기를 10분 하이라이트로</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23ffd400' width='100' height='100' rx='20'/><path d='M 35 40 Q 35 35 40 35 L 45 35 Q 50 35 50 40 L 50 60 Q 50 65 45 65 L 40 65 Q 35 65 35 60 Z' fill='%230e1116' opacity='0.8'/></svg>">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    html {
+      scroll-behavior: smooth;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0e1116;
+      color: #c9d1d9;
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      color: #f0f6fc;
+      font-weight: 700;
+    }
+    h1 {
+      font-size: clamp(2.5rem, 6vw, 4rem);
+      line-height: 1.2;
+    }
+    h2 {
+      font-size: clamp(2rem, 5vw, 3rem);
+      line-height: 1.3;
+      margin-bottom: 2rem;
+    }
+    h3 {
+      font-size: clamp(1.25rem, 3vw, 1.75rem);
+    }
+    a {
+      color: #58c4dc;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    a:hover {
+      color: #79d8f1;
+    }
+    button, .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5rem;
+      padding: 0.875rem 1.5rem;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+    .btn-primary {
+      background: #58c4dc;
+      color: #0e1116;
+    }
+    .btn-primary:hover {
+      background: #79d8f1;
+      transform: translateY(-2px);
+    }
+    .btn-secondary {
+      background: #30363d;
+      color: #f0f6fc;
+      border: 1px solid #444c56;
+    }
+    .btn-secondary:hover {
+      background: #3d444d;
+      border-color: #58c4dc;
+    }
+
+    /* Hero Section */
+    .hero {
+      padding: 80px 20px;
+      text-align: center;
+    }
+    .hero h1 {
+      margin-bottom: 1rem;
+      color: #f0f6fc;
+    }
+    .hero .tagline {
+      font-size: 1.5rem;
+      color: #58c4dc;
+      margin-bottom: 2rem;
+      font-weight: 500;
+    }
+    .hero .cta-group {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 3rem;
+    }
+    .badges {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-top: 2rem;
+    }
+    .badge {
+      background: #161b22;
+      border: 1px solid #30363d;
+      color: #79d8f1;
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    /* Illustration Section */
+    .illustration-section {
+      padding: 60px 20px;
+      text-align: center;
+    }
+    .illustration-section h2 {
+      margin-bottom: 2rem;
+    }
+    .svg-container {
+      display: flex;
+      justify-content: center;
+      margin: 3rem 0;
+    }
+    svg {
+      width: 100%;
+      max-width: 500px;
+      height: auto;
+    }
+
+    /* How It Works */
+    .how-it-works {
+      padding: 60px 20px;
+      background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+    }
+    .how-it-works h2 {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 2rem;
+      margin-bottom: 3rem;
+    }
+    .step {
+      background: #0e1116;
+      padding: 2rem;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+      text-align: center;
+    }
+    .step-icon {
+      width: 60px;
+      height: 60px;
+      margin: 0 auto 1.5rem;
+    }
+    .step h3 {
+      margin-bottom: 1rem;
+    }
+    .step p {
+      color: #8b949e;
+      font-size: 0.95rem;
+    }
+    .metrics-bar {
+      background: #0e1116;
+      padding: 2rem;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+      margin-top: 2rem;
+      text-align: center;
+    }
+    .metrics-title {
+      color: #79d8f1;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+
+    /* Features Grid */
+    .features {
+      padding: 60px 20px;
+    }
+    .features h2 {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 2rem;
+    }
+    .feature-card {
+      background: #161b22;
+      padding: 2rem;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+      transition: all 0.3s;
+    }
+    .feature-card:hover {
+      border-color: #58c4dc;
+      transform: translateY(-4px);
+      background: #1c2128;
+    }
+    .feature-icon {
+      width: 48px;
+      height: 48px;
+      margin-bottom: 1rem;
+    }
+    .feature-card h3 {
+      margin-bottom: 0.5rem;
+      font-size: 1.1rem;
+    }
+    .feature-card p {
+      color: #8b949e;
+      font-size: 0.9rem;
+    }
+
+    /* Screenshots Section */
+    .screenshots {
+      padding: 60px 20px;
+      background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+    }
+    .screenshots h2 {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .screenshots-main {
+      margin-bottom: 3rem;
+      text-align: center;
+    }
+    .screenshots-main img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    .screenshots-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1.5rem;
+    }
+    .screenshot-item {
+      position: relative;
+      overflow: hidden;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+      aspect-ratio: 1;
+    }
+    .screenshot-item img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transition: transform 0.3s;
+    }
+    .screenshot-item:hover img {
+      transform: scale(1.05);
+    }
+
+    /* Honest Section */
+    .honest-section {
+      padding: 60px 20px;
+    }
+    .honest-box {
+      background: #161b22;
+      border: 2px solid #ffd400;
+      border-radius: 12px;
+      padding: 2rem;
+      text-align: center;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+    .honest-box h3 {
+      color: #ffd400;
+      margin-bottom: 1rem;
+    }
+    .honest-box p {
+      color: #c9d1d9;
+      font-size: 1rem;
+      line-height: 1.8;
+    }
+
+    /* FAQ Section */
+    .faq {
+      padding: 60px 20px;
+      background: linear-gradient(135deg, #161b22 0%, #0d1117 100%);
+    }
+    .faq h2 {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .faq-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    .faq-item {
+      background: #0e1116;
+      padding: 1.5rem;
+      border-radius: 12px;
+      border: 1px solid #30363d;
+    }
+    .faq-item h4 {
+      color: #79d8f1;
+      margin-bottom: 0.8rem;
+      font-size: 1rem;
+    }
+    .faq-item p {
+      color: #8b949e;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    /* CTA Section */
+    .cta-section {
+      padding: 60px 20px;
+      text-align: center;
+    }
+    .cta-section h2 {
+      margin-bottom: 2rem;
+    }
+    .cta-section .cta-group {
+      display: flex;
+      gap: 1rem;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    /* Footer */
+    footer {
+      background: #0d1117;
+      border-top: 1px solid #30363d;
+      padding: 3rem 20px;
+      text-align: center;
+      color: #8b949e;
+    }
+    footer p {
+      margin-bottom: 1rem;
+    }
+    footer a {
+      color: #58c4dc;
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .hero {
+        padding: 40px 20px;
+      }
+      .hero h1 {
+        font-size: 2rem;
+      }
+      .hero .tagline {
+        font-size: 1.2rem;
+      }
+      .cta-group {
+        flex-direction: column;
+      }
+      .btn {
+        width: 100%;
+      }
+      .features-grid, .faq-grid {
+        grid-template-columns: 1fr;
+      }
+      .steps {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Hero Section -->
+<section class="hero">
+  <div class="container">
+    <h1>라이브 하이라이트 메이커</h1>
+    <p class="tagline">3시간 방송, 10분 하이라이트로.</p>
+    <div class="cta-group">
+      <a href="https://github.com/h3418kr/live-highlight-maker/releases/latest" class="btn btn-primary">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M11 3a1 1 0 10-2 0v5.5H5.5a1 1 0 000 2H9v5.5a1 1 0 102 0V10.5h3.5a1 1 0 000-2H11V3z"/>
+        </svg>
+        다운로드
+      </a>
+      <a href="https://github.com/h3418kr/live-highlight-maker" class="btn btn-secondary">
+        GitHub 보기
+      </a>
+    </div>
+    <div class="badges">
+      <span class="badge">무료</span>
+      <span class="badge">오픈소스</span>
+      <span class="badge">무설치</span>
+      <span class="badge">Windows 64bit</span>
+    </div>
+  </div>
+</section>
+
+<!-- Illustration Section -->
+<section class="illustration-section">
+  <div class="container">
+    <h2>방송 화면에서 자동으로 하이라이트를 뽑다</h2>
+    <div class="svg-container">
+      <svg viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">
+        <!-- Background broadcast screen -->
+        <rect x="50" y="40" width="340" height="260" rx="8" fill="#1a1f2e" stroke="#444c56" stroke-width="2"/>
+
+        <!-- Game content area (dark blue-ish) -->
+        <rect x="60" y="50" width="200" height="240" fill="#0d1117"/>
+
+        <!-- Chat bubbles on left -->
+        <g>
+          <rect x="70" y="70" width="90" height="25" rx="6" fill="#2d333b"/>
+          <text x="75" y="88" font-family="Arial" font-size="11" fill="#8b949e">우와 미친다!</text>
+
+          <rect x="70" y="105" width="85" height="25" rx="6" fill="#2d333b"/>
+          <text x="75" y="123" font-family="Arial" font-size="11" fill="#8b949e">완벽해ㅋㅋㅋ</text>
+
+          <rect x="70" y="140" width="95" height="25" rx="6" fill="#2d333b"/>
+          <text x="75" y="158" font-family="Arial" font-size="11" fill="#8b949e">이게 잡혔네??</text>
+        </g>
+
+        <!-- Camera frame bottom right -->
+        <rect x="280" y="230" width="100" height="50" rx="4" fill="#30363d" stroke="#444c56" stroke-width="2"/>
+        <circle cx="330" cy="255" r="15" fill="#4a5568"/>
+
+        <!-- Large yellow impact subtitle in center -->
+        <text x="250" y="130" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#ffd400" text-anchor="middle" font-style="italic">
+          이게
+        </text>
+        <text x="250" y="175" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#ffd400" text-anchor="middle" font-style="italic">
+          잡힌다고?!
+        </text>
+
+        <!-- Visual effect lines around subtitle -->
+        <line x1="80" y1="135" x2="120" y2="135" stroke="#ffd400" stroke-width="2" opacity="0.6"/>
+        <line x1="380" y1="165" x2="420" y2="165" stroke="#ffd400" stroke-width="2" opacity="0.6"/>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- How It Works -->
+<section class="how-it-works">
+  <div class="container">
+    <h2>3단계로 완성</h2>
+    <div class="steps">
+      <div class="step">
+        <svg class="step-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="30" cy="30" r="28" fill="none" stroke="#58c4dc" stroke-width="2"/>
+          <text x="30" y="36" font-family="Arial" font-size="24" font-weight="bold" fill="#58c4dc" text-anchor="middle">1</text>
+        </svg>
+        <h3>링크 붙여넣기</h3>
+        <p>유튜브, 치지직, SOOP, 트위치 다시보기 URL을 입력</p>
+      </div>
+      <div class="step">
+        <svg class="step-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="30" cy="30" r="28" fill="none" stroke="#58c4dc" stroke-width="2"/>
+          <text x="30" y="36" font-family="Arial" font-size="24" font-weight="bold" fill="#58c4dc" text-anchor="middle">2</text>
+        </svg>
+        <h3>길이 정하기</h3>
+        <p>원하는 하이라이트 영상 길이를 분 단위로 지정</p>
+      </div>
+      <div class="step">
+        <svg class="step-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="30" cy="30" r="28" fill="none" stroke="#58c4dc" stroke-width="2"/>
+          <text x="30" y="36" font-family="Arial" font-size="24" font-weight="bold" fill="#58c4dc" text-anchor="middle">3</text>
+        </svg>
+        <h3>실행</h3>
+        <p>프로그램이 자동으로 하이라이트를 추출해 저장</p>
+      </div>
+    </div>
+
+    <div class="metrics-bar">
+      <div class="metrics-title">🎬 실측 사례</div>
+      <svg viewBox="0 0 400 80" xmlns="http://www.w3.org/2000/svg" style="width: 100%; max-width: 500px;">
+        <!-- Timeline background -->
+        <rect x="40" y="30" width="320" height="20" rx="10" fill="#30363d"/>
+
+        <!-- Compression bar (blue) -->
+        <rect x="40" y="30" width="35" height="20" rx="10" fill="#58c4dc" opacity="0.8"/>
+        <text x="55" y="45" font-family="Arial" font-size="12" font-weight="bold" fill="#0e1116" text-anchor="middle">10분</text>
+
+        <!-- Labels -->
+        <text x="40" y="15" font-family="Arial" font-size="13" font-weight="600" fill="#79d8f1">입력</text>
+        <text x="360" y="15" font-family="Arial" font-size="13" font-weight="600" fill="#ffd400">결과</text>
+
+        <text x="30" y="65" font-family="Arial" font-size="12" fill="#8b949e">2시간 54분</text>
+        <text x="300" y="65" font-family="Arial" font-size="12" fill="#8b949e">→ 10분 0.5초</text>
+      </svg>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section class="features">
+  <div class="container">
+    <h2>주요 기능</h2>
+    <div class="features-grid">
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
+          <rect x="6" y="6" width="36" height="36" rx="4"/>
+          <path d="M14 20l6 6 12-12"/>
+        </svg>
+        <h3>자동 감지</h3>
+        <p>소리 피크와 채팅 반응을 동시 분석해 하이라이트 선정</p>
+      </div>
+
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
+          <path d="M8 14c0-2 2-4 4-4h24c2 0 4 2 4 4v20c0 2-2 4-4 4H12c-2 0-4-2-4-4V14z"/>
+          <path d="M20 24l8-6v12l-8-6z"/>
+        </svg>
+        <h3>자막 자동 생성</h3>
+        <p>faster-whisper로 한국어·영어 자막 자동 생성</p>
+      </div>
+
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="#ffd400">
+          <rect x="10" y="8" width="28" height="32" rx="4"/>
+          <path d="M12 18h24M12 26h24M12 34h16" stroke="#0e1116" stroke-width="2" fill="none"/>
+        </svg>
+        <h3>예능 임팩트 자막</h3>
+        <p>소리 지르는 순간 중앙에 큰 노란 자막으로 강조</p>
+      </div>
+
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
+          <circle cx="24" cy="24" r="18"/>
+          <path d="M24 14v10l7 7"/>
+        </svg>
+        <h3>목표 길이 지정</h3>
+        <p>원하는 영상 길이를 정하면 정확하게 맞춰 자름</p>
+      </div>
+
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
+          <path d="M8 24h32M24 8v32"/>
+          <circle cx="24" cy="24" r="16"/>
+        </svg>
+        <h3>GPU 가속</h3>
+        <p>GPU 인코딩으로 빠른 영상 변환</p>
+      </div>
+
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
+          <path d="M10 20h28c2 0 4 2 4 4v16c0 2-2 4-4 4H10c-2 0-4-2-4-4V24c0-2 2-4 4-4z"/>
+          <circle cx="24" cy="20" r="3"/>
+        </svg>
+        <h3>자동 클로즈업</h3>
+        <p>캠/버튜버 얼굴 자동 감지 및 클로즈업·펀치인</p>
+      </div>
+
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
+          <rect x="8" y="10" width="32" height="28" rx="2"/>
+          <path d="M14 20h20M14 28h12"/>
+        </svg>
+        <h3>쇼츠 만들기</h3>
+        <p>인스타그램 릴스, 틱톡, 유튜브 쇼츠 자동 포맷</p>
+      </div>
+
+      <div class="feature-card">
+        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
+          <path d="M12 16v16c0 2 2 4 4 4h16c2 0 4-2 4-4V16"/>
+          <path d="M20 28v4M28 28v4M24 20a4 4 0 100-8 4 4 0 000 8z"/>
+        </svg>
+        <h3>점프컷</h3>
+        <p>무음 구간 자동 감지 및 제거</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Screenshots -->
+<section class="screenshots">
+  <div class="container">
+    <h2>실제 모습</h2>
+    <div class="screenshots-main">
+      <img src="img/ui-summarize.png" alt="라이브 하이라이트 메이커 - 요약 화면" loading="lazy">
+    </div>
+    <div class="screenshots-grid">
+      <div class="screenshot-item">
+        <img src="img/ui-finalize.png" alt="라이브 하이라이트 메이커 - 최종화 화면" loading="lazy">
+      </div>
+      <div class="screenshot-item">
+        <img src="img/ui-shorts.png" alt="라이브 하이라이트 메이커 - 쇼츠 화면" loading="lazy">
+      </div>
+      <div class="screenshot-item">
+        <img src="img/ui-manual.png" alt="라이브 하이라이트 메이커 - 매뉴얼 화면" loading="lazy">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Honest Section -->
+<section class="honest-section">
+  <div class="container">
+    <div class="honest-box">
+      <h3>⚠️ 정직한 안내</h3>
+      <p>이 프로그램은 사람의 편집을 대체하지 못합니다. 편집이 어려운 초보 스트리머의 첫 편집 도구, 또는 1차 초안(가편집)을 빠르게 뽑고 싶은 사람을 위한 프로그램입니다. 취미 프로젝트로 꾸준히 유지보수 중입니다.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="faq">
+  <div class="container">
+    <h2>자주 묻는 질문</h2>
+    <div class="faq-grid">
+      <div class="faq-item">
+        <h4>💰 정말 무료인가요?</h4>
+        <p>네, 완전 무료입니다. 오픈소스(MIT 라이선스)이므로 소스 코드도 공개되어 있습니다. 광고나 구독료 없습니다.</p>
+      </div>
+
+      <div class="faq-item">
+        <h4>📦 설치가 필요한가요?</h4>
+        <p>아니요. GitHub에서 ZIP 파일을 내려받고 압축을 푼 후 '요약기_실행.bat' 파일을 실행하면 됩니다. 별도 설치 불필요.</p>
+      </div>
+
+      <div class="faq-item">
+        <h4>📺 어떤 플랫폼을 지원하나요?</h4>
+        <p>유튜브, 치지직, SOOP(아프리카), 트위치의 다시보기 URL을 지원합니다. 각 플랫폼의 공개 다시보기만 가능합니다.</p>
+      </div>
+
+      <div class="faq-item">
+        <h4>🌍 영어 방송도 되나요?</h4>
+        <p>네, 됩니다. 언어 옵션에서 'en'을 입력하면 영어 음성 인식 및 자막이 생성됩니다.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CTA Section -->
+<section class="cta-section">
+  <div class="container">
+    <h2>지금 시작하세요</h2>
+    <div class="cta-group">
+      <a href="https://github.com/h3418kr/live-highlight-maker/releases/latest" class="btn btn-primary">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <path d="M11 3a1 1 0 10-2 0v5.5H5.5a1 1 0 000 2H9v5.5a1 1 0 102 0V10.5h3.5a1 1 0 000-2H11V3z"/>
+        </svg>
+        다운로드 (최신 버전)
+      </a>
+      <a href="https://github.com/h3418kr/live-highlight-maker" class="btn btn-secondary">
+        GitHub에서 보기
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer>
+  <div class="container">
+    <p>&copy; 2026 Live Highlight Maker</p>
+    <p>
+      <a href="https://github.com/h3418kr/live-highlight-maker">GitHub</a> ·
+      MIT License · Open Source
+    </p>
+    <p style="font-size: 0.85rem; margin-top: 1rem;">
+      버그 리포트 및 피드백은 <a href="https://github.com/h3418kr/live-highlight-maker/issues">GitHub 이슈</a>로 환영합니다.
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

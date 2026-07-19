@@ -361,6 +361,9 @@ def main():
                         help="채팅 위치: auto=자동감지, left=왼쪽, right=오른쪽 (기본: auto)")
     parser.add_argument("--cookies-browser", default="",
                         help="로그인 쿠키를 가져올 브라우저 (chrome/edge/whale/firefox). 연령제한·구독자 전용 다시보기용")
+    parser.add_argument("--prompt", default=GAME_PROMPT,
+                        help="Whisper initial_prompt (전문 용어 힌트). 기본값은 디아블로2 용어집. "
+                             "빈 문자열이면 힌트 없이 받아씁니다.")
     args = parser.parse_args()
 
     if args.cpu_encode:
@@ -511,7 +514,7 @@ def main():
                 if args.subtitles:
                     wav_tmp = os.path.join(tmpdir, "flat_audio.wav")
                     extract_audio(flat, wav_tmp)
-                    whisper_result = transcribe(wav_tmp, args.model, args.lang, GAME_PROMPT)
+                    whisper_result = transcribe(wav_tmp, args.model, args.lang, args.prompt)
                     clip_dur = get_duration(flat)
                     srt_content = build_srt(whisper_result, [(0.0, clip_dur)])
 
@@ -542,7 +545,7 @@ def main():
                         if not args.subtitles:
                             wav_tmp = os.path.join(tmpdir, "flat_audio.wav")
                             extract_audio(flat, wav_tmp)
-                        whisper_result = transcribe(wav_tmp, "tiny", args.lang, GAME_PROMPT)
+                        whisper_result = transcribe(wav_tmp, "tiny", args.lang, args.prompt)
                         transcript = " ".join(
                             seg.get("text", "").strip()
                             for seg in whisper_result.get("segments", [])

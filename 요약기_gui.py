@@ -66,6 +66,87 @@ def save_gemini_key(key):
         pass
 
 
+def build_glossary_prompt():
+    """용어집.txt 읽어 Whisper initial_prompt 생성.
+
+    파일 없음 → None (기본값 동작)
+    파일 있음 → "다음 용어가 나올 수 있습니다: {용어들}." 형태
+    용어 없음 → "" (힌트 없음)
+    800자 초과 → 800자 이하로 용어 단위 자르기
+    """
+    glossary_path = os.path.join(SCRIPT_DIR, "용어집.txt")
+    if not os.path.isfile(glossary_path):
+        return None
+
+    try:
+        with open(glossary_path, encoding="utf-8", errors="replace") as f:
+            lines = f.readlines()
+    except Exception:
+        return None
+
+    # '#' 시작 줄·빈 줄 제거
+    terms = [ln.strip() for ln in lines
+             if ln.strip() and not ln.strip().startswith("#")]
+
+    if not terms:
+        return ""
+
+    # 용어를 ", "로 연결
+    terms_str = ", ".join(terms)
+    full_prompt = f"다음 용어가 나올 수 있습니다: {terms_str}."
+
+    if len(full_prompt) > 800:
+        # 800자 이내로 용어 단위로 자르기
+        result = "다음 용어가 나올 수 있습니다: "
+        for term in terms:
+            test = result + term + ", "
+            if len(test) > 800:
+                result = result.rstrip(", ") + "."
+                print(f"  [용어집] 800자 초과 - {len(full_prompt)}자에서 {len(result)}자로 단축")
+                return result
+            result = test
+        result = result.rstrip(", ") + "."
+        return result
+
+    return full_prompt
+
+
+# 완료 알림 전역 변수 (헤더에서 생성)
+notify_sound_var = None
+open_folder_var = None
+
+
+def notify_done(ok, open_path=None):
+    """완료 알림음 재생 및 폴더/파일 열기.
+
+    ok: 성공 여부
+    open_path: 열 파일/폴더 경로 (None이면 소리만)
+    """
+    if notify_sound_var is None or open_folder_var is None:
+        return
+
+    # 알림음
+    if notify_sound_var.get():
+        try:
+            import winsound
+            if ok:
+                winsound.MessageBeep(winsound.MB_ICONASTERISK)
+            else:
+                winsound.MessageBeep(winsound.MB_ICONHAND)
+        except Exception:
+            pass
+
+    # 폴더/파일 열기
+    if ok and open_folder_var.get() and open_path:
+        try:
+            if os.path.isfile(open_path):
+                subprocess.Popen(["explorer", "/select,", os.path.normpath(open_path)])
+            elif os.path.isdir(open_path):
+                os.startfile(open_path)
+        except Exception:
+            pass
+
+
 # ── 설정 저장/복원 메커니즘 ──────────────────────────────────────────────────────
 SETTINGS_REG = []  # (key, kind, obj) 등록 리스트
 
@@ -161,6 +242,10 @@ STRINGS = {
         "tab_summarize": "  영상 요약  ",
         "tab_finalize": "  완성 영상 만들기  ",
         "lang_button": "🌐 English",
+        "glossary_btn": "용어집",
+        "glossary_hint": "(음성 인식 용어 힌트)",
+        "notify_sound": "완료 알림음",
+        "open_folder": "완료 시 폴더 열기",
         # summarize tab
         "sum_heading": "영상 요약 — 방송을 하이라이트로",
         "url": "URL 또는 로컬 파일",
@@ -355,6 +440,10 @@ STRINGS = {
         "tab_summarize": "  Summarize  ",
         "tab_finalize": "  Finalize  ",
         "lang_button": "🌐 한국어",
+        "glossary_btn": "Glossary",
+        "glossary_hint": "(speech hint terms)",
+        "notify_sound": "Completion sound",
+        "open_folder": "Open folder on done",
         # summarize tab
         "sum_heading": "Summarize — turn broadcasts into highlights",
         "url": "URL or local file",
@@ -927,6 +1016,11 @@ def build_summarizer_tab(nb):
         if not hwenc_var.get():
             cmd.append("--cpu-encode")
 
+        # 사용자 용어집 추가
+        gp = build_glossary_prompt()
+        if gp is not None:
+            cmd += ["--prompt", gp]
+
         log.config(state="normal")
         log.delete("1.0", tk.END)
         log.config(state="disabled")
@@ -950,12 +1044,15 @@ def build_summarizer_tab(nb):
             if status_var:
                 status_var.set(_t("status_ready"))
             if not ok:
+                notify_done(ok)
                 messagebox.showerror(_t("msg_error"), _t("msg_error_body"))
                 return
             if analyze_mode and _load_analysis_into_manual(log):
+                notify_done(ok, None)
                 nb.select(MANUAL_TAB["frame"])
                 messagebox.showinfo(_t("msg_done"), _t("msg_analyze_done"))
             else:
+                notify_done(ok, outdir_var.get())
                 messagebox.showinfo(
                     _t("msg_done"),
                     _t("msg_summ_done").format(folder=outdir_var.get()))
@@ -1186,6 +1283,10 @@ def build_manual_tab(nb):
             cmd += ["--subtitles",
                     "--model", MODEL_CODES[max(model_combo.current(), 0)],
                     "--lang", lang_var.get()]
+            # 사용자 용어집 추가 (자막 생성 시만)
+            gp = build_glossary_prompt()
+            if gp is not None:
+                cmd += ["--prompt", gp]
 
         log.config(state="normal")
         log.delete("1.0", tk.END)
@@ -1209,6 +1310,7 @@ def build_manual_tab(nb):
                 progress_hide()
             if status_var:
                 status_var.set(_t("status_ready"))
+            notify_done(ok, outdir_var.get() if ok else None)
             if ok:
                 messagebox.showinfo(
                     _t("msg_done"),
@@ -1388,6 +1490,10 @@ def build_shorts_tab(nb):
             cmd += ["--subtitles",
                     "--model", MODEL_CODES[max(model_combo.current(), 0)],
                     "--lang", lang_var.get()]
+            # 사용자 용어집 추가 (자막 생성 시만)
+            gp = build_glossary_prompt()
+            if gp is not None:
+                cmd += ["--prompt", gp]
         if not shorts_hwenc_var.get():
             cmd.append("--cpu-encode")
 
@@ -1413,6 +1519,7 @@ def build_shorts_tab(nb):
                 progress_hide()
             if status_var:
                 status_var.set(_t("status_ready"))
+            notify_done(ok, outdir_var.get() if ok else None)
             if ok:
                 messagebox.showinfo(
                     _t("msg_done"),
@@ -1822,6 +1929,7 @@ def build_finalize_tab(nb):
                 progress_hide()
             if status_var:
                 status_var.set(_t("status_ready"))
+            notify_done(ok, out if ok else None)
             if ok:
                 messagebox.showinfo(_t("msg_done"),
                                     _t("msg_final_done").format(path=out))
@@ -2070,6 +2178,10 @@ def build_autoshorts_tab(nb):
                     "--sub-pos", SHORTS_SUBPOS_CODES[max(subpos_combo.current(), 0)],
                     "--font", FONT_CODES[max(font_combo.current(), 0)],
                     "--font-size", fontsize_var.get().strip()]
+            # 사용자 용어집 추가 (자막 생성 시만)
+            gp = build_glossary_prompt()
+            if gp is not None:
+                cmd += ["--prompt", gp]
         if ai_title_var.get() and gkey:
             cmd += ["--ai-title", "--gemini-key", gkey]
         if not autoshorts_hwenc_var.get():
@@ -2105,6 +2217,7 @@ def build_autoshorts_tab(nb):
                 progress_hide()
             if status_var:
                 status_var.set(_t("status_ready"))
+            notify_done(ok, outdir_var.get() if ok else None)
             if ok:
                 messagebox.showinfo(
                     _t("msg_done"),
@@ -2177,6 +2290,52 @@ def main():
     title_label = ttk.Label(header, text=_t("app_title"), font=("Segoe UI", 12, "bold"))
     reg("text", title_label, "app_title")
     title_label.pack(side="left", padx=4, pady=4)
+
+    # 용어집 버튼
+    def on_glossary_btn():
+        glossary_path = os.path.join(SCRIPT_DIR, "용어집.txt")
+        if not os.path.isfile(glossary_path):
+            # 템플릿 생성
+            try:
+                with open(glossary_path, "w", encoding="utf-8") as f:
+                    f.write("# 용어집: 음성 인식(자막)이 잘 틀리는 게임/방송 용어를 한 줄에 하나씩 적어주세요.\n")
+                    f.write("# '#'으로 시작하는 줄과 빈 줄은 무시됩니다.\n")
+                    f.write("# 모든 용어를 지우면(빈 파일) 용어 힌트 없이 인식합니다.\n")
+                    f.write("# 아래는 예시(디아블로2)입니다. 자기 방송에 맞게 바꿔주세요.\n")
+                    f.write("디아블로\n")
+                    f.write("룬워드\n")
+                    f.write("써클릿\n")
+                    f.write("팔라딘\n")
+                    f.write("해머딘\n")
+                    f.write("메피스토\n")
+                    f.write("카우방\n")
+                    f.write("호라드릭 큐브\n")
+            except Exception:
+                pass
+        try:
+            os.startfile(glossary_path)
+        except Exception:
+            pass
+
+    glossary_btn = ttk.Button(header, text=_t("glossary_btn"), command=on_glossary_btn, width=8)
+    glossary_btn.pack(side="right", padx=(2, 4), pady=4)
+    reg("text", glossary_btn, "glossary_btn")
+
+    # 전역 변수 초기화 (notify_done에서 사용)
+    global notify_sound_var, open_folder_var
+    notify_sound_var = tk.BooleanVar(value=True)
+    open_folder_var = tk.BooleanVar(value=True)
+    reg_setting("ui.notify_sound", "var", notify_sound_var)
+    reg_setting("ui.open_folder", "var", open_folder_var)
+
+    # 체크박스 (오른쪽에서 왼쪽 순서로 추가)
+    chk_open_folder = ttk.Checkbutton(header, text=_t("open_folder"), variable=open_folder_var)
+    reg("text", chk_open_folder, "open_folder")
+    chk_open_folder.pack(side="right", padx=(2, 4), pady=4)
+
+    chk_notify_sound = ttk.Checkbutton(header, text=_t("notify_sound"), variable=notify_sound_var)
+    reg("text", chk_notify_sound, "notify_sound")
+    chk_notify_sound.pack(side="right", padx=(2, 4), pady=4)
 
     def toggle_lang():
         STATE["lang"] = "en" if STATE["lang"] == "ko" else "ko"

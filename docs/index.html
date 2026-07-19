@@ -22,6 +22,9 @@
       background: #0e1116;
       color: #c9d1d9;
       line-height: 1.6;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      overflow-x: hidden;
     }
     .container {
       max-width: 1200px;
@@ -33,16 +36,106 @@
       font-weight: 700;
     }
     h1 {
-      font-size: clamp(2.5rem, 6vw, 4rem);
-      line-height: 1.2;
+      font-size: clamp(1.8rem, 7vw, 3.5rem);
+      line-height: 1.25;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+      background: linear-gradient(135deg, #58c4dc 0%, #f0f6fc 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
     h2 {
-      font-size: clamp(2rem, 5vw, 3rem);
+      font-size: clamp(1.5rem, 5vw, 3rem);
       line-height: 1.3;
       margin-bottom: 2rem;
+      position: relative;
+      padding-top: 1.5rem;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+    }
+    h2.section-demo::before {
+      content: "Demo";
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #58c4dc;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+      opacity: 0.85;
+    }
+    h2.section-steps::before {
+      content: "How It Works";
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #58c4dc;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+      opacity: 0.85;
+    }
+    h2.section-features::before {
+      content: "Features";
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #58c4dc;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+      opacity: 0.85;
+    }
+    h2.section-screenshots::before {
+      content: "UI Preview";
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #58c4dc;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+      opacity: 0.85;
+    }
+    h2.section-faq::before {
+      content: "FAQ";
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #58c4dc;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+      opacity: 0.85;
+    }
+    h2.section-moments::before {
+      content: "Moments";
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #58c4dc;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+      opacity: 0.85;
+    }
+
+    h2.section-cta::before {
+      content: "Get Started";
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      color: #58c4dc;
+      text-transform: uppercase;
+      margin-bottom: 0.8rem;
+      opacity: 0.85;
     }
     h3 {
-      font-size: clamp(1.25rem, 3vw, 1.75rem);
+      font-size: clamp(1rem, 3vw, 1.75rem);
+      word-break: keep-all;
+      overflow-wrap: break-word;
     }
     a {
       color: #58c4dc;
@@ -57,32 +150,42 @@
       align-items: center;
       justify-content: center;
       gap: 0.5rem;
-      padding: 0.875rem 1.5rem;
+      padding: 0.875rem 1.75rem;
       font-size: 1rem;
       font-weight: 600;
       border: none;
-      border-radius: 8px;
+      border-radius: 12px;
       cursor: pointer;
-      transition: all 0.2s;
+      transition: all 0.3s;
       text-decoration: none;
       white-space: nowrap;
     }
+    .btn svg {
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
     .btn-primary {
-      background: #58c4dc;
+      background: linear-gradient(135deg, #58c4dc 0%, #79d8f1 100%);
       color: #0e1116;
+      box-shadow: 0 4px 12px rgba(88, 196, 220, 0.2);
     }
     .btn-primary:hover {
-      background: #79d8f1;
-      transform: translateY(-2px);
+      background: linear-gradient(135deg, #79d8f1 0%, #a8e6f5 100%);
+      transform: translateY(-3px);
+      box-shadow: 0 8px 24px rgba(88, 196, 220, 0.4);
     }
     .btn-secondary {
       background: #30363d;
       color: #f0f6fc;
       border: 1px solid #444c56;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     }
     .btn-secondary:hover {
       background: #3d444d;
       border-color: #58c4dc;
+      box-shadow: 0 0 16px rgba(88, 196, 220, 0.3);
+      transform: translateY(-2px);
     }
 
     /* Hero Section */
@@ -132,15 +235,106 @@
     .illustration-section h2 {
       margin-bottom: 2rem;
     }
+    .demo-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      max-width: 760px;
+      margin: 3rem auto;
+    }
+    .monitor-frame {
+      position: relative;
+      width: 100%;
+      max-width: 760px;
+      border-radius: 16px;
+      background: #1a1f2e;
+      border: 3px solid #0a0e16;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+    }
+    .monitor-top-bar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      height: 36px;
+      background: #0f1319;
+      padding: 0 1.5rem;
+      border-bottom: 1px solid #2d3139;
+    }
+    .traffic-light {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+    }
+    .traffic-light.red {
+      background: #ff5f56;
+    }
+    .traffic-light.yellow {
+      background: #ffbd2e;
+    }
+    .traffic-light.green {
+      background: #27c93f;
+    }
+    .monitor-screen {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1100 / 619;
+      overflow: hidden;
+      background: #0e1116;
+    }
+    .monitor-screen img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .impact-text {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) rotate(-3deg);
+      font-family: Arial, sans-serif;
+      font-size: clamp(2rem, 8vw, 3.5rem);
+      font-weight: 900;
+      color: #ffd400;
+      text-align: center;
+      text-shadow:
+        -2px -2px 0 #a68c00,
+        2px -2px 0 #a68c00,
+        -2px 2px 0 #a68c00,
+        2px 2px 0 #a68c00,
+        -3px 0 0 #a68c00,
+        3px 0 0 #a68c00,
+        0 -3px 0 #a68c00,
+        0 3px 0 #a68c00;
+      filter: drop-shadow(0 0 8px rgba(255, 212, 0, 0.6));
+      white-space: nowrap;
+      line-height: 1.2;
+    }
+    .demo-caption {
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      color: #8b949e;
+      text-align: center;
+    }
     .svg-container {
       display: flex;
       justify-content: center;
-      margin: 3rem 0;
+      width: 100%;
+      max-width: 760px;
+      margin: 3rem auto;
+      padding: 0 20px;
     }
     svg {
       width: 100%;
-      max-width: 500px;
+      max-width: 760px;
       height: auto;
+      display: block;
+    }
+
+    /* Mobile line breaks */
+    .mobile-br {
+      display: none;
     }
 
     /* How It Works */
@@ -191,6 +385,66 @@
       margin-bottom: 1.5rem;
     }
 
+    /* Moments Section */
+    .moments {
+      padding: 60px 20px;
+    }
+    .moments h2 {
+      text-align: center;
+      margin-bottom: 3rem;
+    }
+    .moments-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-bottom: 2rem;
+    }
+    .moments-card {
+      position: relative;
+      overflow: hidden;
+      border-radius: 16px;
+      border: 2px solid rgba(88, 196, 220, 0.2);
+      aspect-ratio: 3 / 4;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+      transition: all 0.3s;
+    }
+    .moments-card:hover {
+      border-color: rgba(88, 196, 220, 0.4);
+      box-shadow: 0 16px 40px rgba(88, 196, 220, 0.15), 0 0 24px rgba(88, 196, 220, 0.1);
+      transform: scale(1.02);
+    }
+    .moments-card img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .moments-content {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(180deg, rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 0.9) 60%, rgba(0, 0, 0, 1) 100%);
+      color: #f0f6fc;
+      padding: 2rem 1.5rem 1.5rem;
+      text-align: center;
+    }
+    .moments-content h3 {
+      margin-bottom: 0.5rem;
+      font-size: 1.1rem;
+    }
+    .moments-content p {
+      color: #c9d1d9;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    .moments-caption {
+      margin-top: 1.5rem;
+      font-size: 0.875rem;
+      color: #8b949e;
+      text-align: center;
+    }
+
     /* Features Grid */
     .features {
       padding: 60px 20px;
@@ -207,14 +461,15 @@
     .feature-card {
       background: #161b22;
       padding: 2rem;
-      border-radius: 12px;
+      border-radius: 16px;
       border: 1px solid #30363d;
       transition: all 0.3s;
     }
     .feature-card:hover {
       border-color: #58c4dc;
-      transform: translateY(-4px);
+      transform: translateY(-6px);
       background: #1c2128;
+      box-shadow: 0 0 24px rgba(88, 196, 220, 0.3), 0 12px 32px rgba(0, 0, 0, 0.4);
     }
     .feature-icon {
       width: 48px;
@@ -246,9 +501,14 @@
     .screenshots-main img {
       max-width: 100%;
       height: auto;
-      border-radius: 12px;
-      border: 1px solid #30363d;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      border-radius: 16px;
+      border: 2px solid rgba(88, 196, 220, 0.3);
+      box-shadow: 0 24px 56px rgba(0, 0, 0, 0.6);
+      transition: transform 0.3s, box-shadow 0.3s;
+    }
+    .screenshots-main img:hover {
+      transform: scale(1.02);
+      box-shadow: 0 32px 72px rgba(88, 196, 220, 0.2), 0 0 32px rgba(88, 196, 220, 0.1);
     }
     .screenshots-grid {
       display: grid;
@@ -258,9 +518,15 @@
     .screenshot-item {
       position: relative;
       overflow: hidden;
-      border-radius: 12px;
-      border: 1px solid #30363d;
+      border-radius: 16px;
+      border: 2px solid rgba(88, 196, 220, 0.2);
       aspect-ratio: 1;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+      transition: box-shadow 0.3s, border-color 0.3s;
+    }
+    .screenshot-item:hover {
+      border-color: rgba(88, 196, 220, 0.4);
+      box-shadow: 0 16px 40px rgba(88, 196, 220, 0.15), 0 0 24px rgba(88, 196, 220, 0.1);
     }
     .screenshot-item img {
       width: 100%;
@@ -330,11 +596,22 @@
 
     /* CTA Section */
     .cta-section {
-      padding: 60px 20px;
+      padding: 80px 20px;
       text-align: center;
+    }
+    .cta-section > .container {
+      background: linear-gradient(135deg, rgba(88, 196, 220, 0.08) 0%, rgba(255, 212, 0, 0.04) 100%);
+      border: 1px solid rgba(88, 196, 220, 0.2);
+      border-radius: 20px;
+      padding: 3rem 2rem;
+      box-shadow: 0 16px 48px rgba(88, 196, 220, 0.1);
     }
     .cta-section h2 {
       margin-bottom: 2rem;
+      background: linear-gradient(135deg, #58c4dc 0%, #79d8f1 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
     }
     .cta-section .cta-group {
       display: flex;
@@ -364,7 +641,7 @@
         padding: 40px 20px;
       }
       .hero h1 {
-        font-size: 2rem;
+        font-size: clamp(1.5rem, 5vw, 2rem);
       }
       .hero .tagline {
         font-size: 1.2rem;
@@ -380,6 +657,61 @@
       }
       .steps {
         grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .mobile-br {
+        display: block;
+      }
+      .hero {
+        padding: 30px 16px;
+      }
+      .hero h1 {
+        font-size: clamp(1.3rem, 6vw, 1.8rem);
+        line-height: 1.2;
+      }
+      .hero .tagline {
+        font-size: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      .hero .cta-group {
+        gap: 0.5rem;
+        margin-bottom: 2rem;
+      }
+      .btn {
+        padding: 0.75rem 1.25rem;
+        font-size: 0.9rem;
+      }
+      .btn svg {
+        width: 16px;
+        height: 16px;
+      }
+      .badges {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 1.5rem;
+      }
+      .badge {
+        font-size: 0.75rem;
+        padding: 0.4rem 0.8rem;
+        flex-shrink: 1;
+        min-width: auto;
+      }
+      h2 {
+        font-size: clamp(1.25rem, 5vw, 1.75rem);
+      }
+      h3 {
+        font-size: clamp(0.9rem, 3vw, 1.25rem);
+      }
+      .svg-container {
+        max-width: 100%;
+        margin: 1.5rem 0;
+      }
+      svg {
+        max-width: 100%;
       }
     }
   </style>
@@ -414,43 +746,20 @@
 <!-- Illustration Section -->
 <section class="illustration-section">
   <div class="container">
-    <h2>방송 화면에서 자동으로 하이라이트를 뽑다</h2>
-    <div class="svg-container">
-      <svg viewBox="0 0 500 400" xmlns="http://www.w3.org/2000/svg">
-        <!-- Background broadcast screen -->
-        <rect x="50" y="40" width="340" height="260" rx="8" fill="#1a1f2e" stroke="#444c56" stroke-width="2"/>
-
-        <!-- Game content area (dark blue-ish) -->
-        <rect x="60" y="50" width="200" height="240" fill="#0d1117"/>
-
-        <!-- Chat bubbles on left -->
-        <g>
-          <rect x="70" y="70" width="90" height="25" rx="6" fill="#2d333b"/>
-          <text x="75" y="88" font-family="Arial" font-size="11" fill="#8b949e">우와 미친다!</text>
-
-          <rect x="70" y="105" width="85" height="25" rx="6" fill="#2d333b"/>
-          <text x="75" y="123" font-family="Arial" font-size="11" fill="#8b949e">완벽해ㅋㅋㅋ</text>
-
-          <rect x="70" y="140" width="95" height="25" rx="6" fill="#2d333b"/>
-          <text x="75" y="158" font-family="Arial" font-size="11" fill="#8b949e">이게 잡혔네??</text>
-        </g>
-
-        <!-- Camera frame bottom right -->
-        <rect x="280" y="230" width="100" height="50" rx="4" fill="#30363d" stroke="#444c56" stroke-width="2"/>
-        <circle cx="330" cy="255" r="15" fill="#4a5568"/>
-
-        <!-- Large yellow impact subtitle in center -->
-        <text x="250" y="130" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#ffd400" text-anchor="middle" font-style="italic">
-          이게
-        </text>
-        <text x="250" y="175" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#ffd400" text-anchor="middle" font-style="italic">
-          잡힌다고?!
-        </text>
-
-        <!-- Visual effect lines around subtitle -->
-        <line x1="80" y1="135" x2="120" y2="135" stroke="#ffd400" stroke-width="2" opacity="0.6"/>
-        <line x1="380" y1="165" x2="420" y2="165" stroke="#ffd400" stroke-width="2" opacity="0.6"/>
-      </svg>
+    <h2 class="section-demo">방송 화면에서 자동으로 <br class="mobile-br">하이라이트를 뽑다</h2>
+    <div class="demo-container">
+      <div class="monitor-frame">
+        <div class="monitor-top-bar">
+          <div class="traffic-light red"></div>
+          <div class="traffic-light yellow"></div>
+          <div class="traffic-light green"></div>
+        </div>
+        <div class="monitor-screen">
+          <img src="img/art-game-wide.jpg" alt="게임 화면" width="1100" height="619" loading="lazy">
+          <div class="impact-text">이게 잡힌다고?!</div>
+        </div>
+      </div>
+      <p class="demo-caption">* AI로 연출된 예시 화면입니다</p>
     </div>
   </div>
 </section>
@@ -458,10 +767,10 @@
 <!-- How It Works -->
 <section class="how-it-works">
   <div class="container">
-    <h2>3단계로 완성</h2>
+    <h2 class="section-steps">3단계로 완성</h2>
     <div class="steps">
       <div class="step">
-        <svg class="step-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <svg class="step-icon" width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
           <circle cx="30" cy="30" r="28" fill="none" stroke="#58c4dc" stroke-width="2"/>
           <text x="30" y="36" font-family="Arial" font-size="24" font-weight="bold" fill="#58c4dc" text-anchor="middle">1</text>
         </svg>
@@ -469,7 +778,7 @@
         <p>유튜브, 치지직, SOOP, 트위치 다시보기 URL을 입력</p>
       </div>
       <div class="step">
-        <svg class="step-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <svg class="step-icon" width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
           <circle cx="30" cy="30" r="28" fill="none" stroke="#58c4dc" stroke-width="2"/>
           <text x="30" y="36" font-family="Arial" font-size="24" font-weight="bold" fill="#58c4dc" text-anchor="middle">2</text>
         </svg>
@@ -477,7 +786,7 @@
         <p>원하는 하이라이트 영상 길이를 분 단위로 지정</p>
       </div>
       <div class="step">
-        <svg class="step-icon" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+        <svg class="step-icon" width="60" height="60" viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
           <circle cx="30" cy="30" r="28" fill="none" stroke="#58c4dc" stroke-width="2"/>
           <text x="30" y="36" font-family="Arial" font-size="24" font-weight="bold" fill="#58c4dc" text-anchor="middle">3</text>
         </svg>
@@ -488,20 +797,56 @@
 
     <div class="metrics-bar">
       <div class="metrics-title">🎬 실측 사례</div>
-      <svg viewBox="0 0 400 80" xmlns="http://www.w3.org/2000/svg" style="width: 100%; max-width: 500px;">
-        <!-- Timeline background -->
-        <rect x="40" y="30" width="320" height="20" rx="10" fill="#30363d"/>
+      <svg viewBox="0 0 600 140" xmlns="http://www.w3.org/2000/svg" style="width: 100%; max-width: 600px;">
+        <defs>
+          <filter id="timelineGlow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2.5" result="coloredBlur"/>
+            <feMerge>
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+          <linearGradient id="highlightGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" style="stop-color:#58c4dc;stop-opacity:0.95"/>
+            <stop offset="100%" style="stop-color:#79d8f1;stop-opacity:0.85"/>
+          </linearGradient>
+        </defs>
 
-        <!-- Compression bar (blue) -->
-        <rect x="40" y="30" width="35" height="20" rx="10" fill="#58c4dc" opacity="0.8"/>
-        <text x="55" y="45" font-family="Arial" font-size="12" font-weight="bold" fill="#0e1116" text-anchor="middle">10분</text>
+        <!-- Long timeline track (2시간 54분) - top row -->
+        <rect x="40" y="20" width="520" height="24" rx="12" fill="#30363d" stroke="#3d444d" stroke-width="1"/>
 
-        <!-- Labels -->
-        <text x="40" y="15" font-family="Arial" font-size="13" font-weight="600" fill="#79d8f1">입력</text>
-        <text x="360" y="15" font-family="Arial" font-size="13" font-weight="600" fill="#ffd400">결과</text>
+        <!-- Highlight segments - distributed across full width -->
+        <rect x="60" y="20" width="45" height="24" rx="10" fill="url(#highlightGrad)" opacity="0.9" filter="url(#timelineGlow)"/>
+        <rect x="130" y="20" width="52" height="24" rx="10" fill="url(#highlightGrad)" opacity="0.85" filter="url(#timelineGlow)"/>
+        <rect x="230" y="20" width="48" height="24" rx="10" fill="url(#highlightGrad)" opacity="0.8" filter="url(#timelineGlow)"/>
+        <rect x="325" y="20" width="56" height="24" rx="10" fill="url(#highlightGrad)" opacity="0.9" filter="url(#timelineGlow)"/>
+        <rect x="430" y="20" width="45" height="24" rx="10" fill="url(#highlightGrad)" opacity="0.85" filter="url(#timelineGlow)"/>
 
-        <text x="30" y="65" font-family="Arial" font-size="12" fill="#8b949e">2시간 54분</text>
-        <text x="300" y="65" font-family="Arial" font-size="12" fill="#8b949e">→ 10분 0.5초</text>
+        <!-- Tick marks on main track -->
+        <line x1="100" y1="16" x2="100" y2="10" stroke="#58c4dc" stroke-width="1" opacity="0.5"/>
+        <line x1="220" y1="16" x2="220" y2="10" stroke="#58c4dc" stroke-width="1" opacity="0.5"/>
+        <line x1="380" y1="16" x2="380" y2="10" stroke="#58c4dc" stroke-width="1" opacity="0.5"/>
+        <line x1="540" y1="16" x2="540" y2="10" stroke="#58c4dc" stroke-width="1" opacity="0.5"/>
+
+        <!-- Connecting curved lines from highlights to output (symmetrical) -->
+        <path d="M 102 44 Q 160 70 220 90" stroke="#58c4dc" stroke-width="2" fill="none" opacity="0.6" stroke-dasharray="4,3" filter="url(#timelineGlow)"/>
+        <path d="M 477 44 Q 420 70 380 90" stroke="#58c4dc" stroke-width="2" fill="none" opacity="0.6" stroke-dasharray="4,3" filter="url(#timelineGlow)"/>
+
+        <!-- Connection endpoints (circles) -->
+        <circle cx="102" cy="44" r="3.5" fill="#ffd400" opacity="0.8" filter="url(#timelineGlow)"/>
+        <circle cx="477" cy="44" r="3.5" fill="#ffd400" opacity="0.8" filter="url(#timelineGlow)"/>
+        <circle cx="220" cy="90" r="3" fill="#58c4dc" opacity="0.7" filter="url(#timelineGlow)"/>
+        <circle cx="380" cy="90" r="3" fill="#58c4dc" opacity="0.7" filter="url(#timelineGlow)"/>
+
+        <!-- Short output track (10분) - bottom row, centered -->
+        <rect x="240" y="100" width="120" height="20" rx="10" fill="#58c4dc" opacity="0.9" filter="url(#timelineGlow)"/>
+
+        <!-- Play icon -->
+        <polygon points="300,107 300,113 310,110" fill="#0e1116" opacity="0.9"/>
+
+        <!-- Duration labels -->
+        <text x="40" y="138" font-family="Arial, sans-serif" font-size="12" font-weight="600" fill="#8b949e">2시간 54분</text>
+        <text x="420" y="138" font-family="Arial, sans-serif" font-size="12" font-weight="600" fill="#8b949e">10분 0.5초</text>
       </svg>
     </div>
   </div>
@@ -510,75 +855,86 @@
 <!-- Features -->
 <section class="features">
   <div class="container">
-    <h2>주요 기능</h2>
+    <h2 class="section-features">주요 기능</h2>
     <div class="features-grid">
       <div class="feature-card">
-        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
-          <rect x="6" y="6" width="36" height="36" rx="4"/>
-          <path d="M14 20l6 6 12-12"/>
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="8" y="8" width="32" height="32" rx="4"/>
+          <polyline points="16 24 22 30 32 20" stroke="#ffd400" stroke-width="2.5"/>
         </svg>
         <h3>자동 감지</h3>
         <p>소리 피크와 채팅 반응을 동시 분석해 하이라이트 선정</p>
       </div>
 
       <div class="feature-card">
-        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
-          <path d="M8 14c0-2 2-4 4-4h24c2 0 4 2 4 4v20c0 2-2 4-4 4H12c-2 0-4-2-4-4V14z"/>
-          <path d="M20 24l8-6v12l-8-6z"/>
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="6" y="12" width="36" height="28" rx="3"/>
+          <path d="M18 28l7-5 7 5" stroke="#ffd400" stroke-width="2.5" fill="none"/>
+          <line x1="24" y1="23" x2="24" y2="32" stroke="#ffd400" stroke-width="2.5"/>
         </svg>
         <h3>자막 자동 생성</h3>
         <p>faster-whisper로 한국어·영어 자막 자동 생성</p>
       </div>
 
       <div class="feature-card">
-        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="#ffd400">
-          <rect x="10" y="8" width="28" height="32" rx="4"/>
-          <path d="M12 18h24M12 26h24M12 34h16" stroke="#0e1116" stroke-width="2" fill="none"/>
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="8" y="6" width="32" height="36" rx="3"/>
+          <line x1="12" y1="16" x2="36" y2="16" stroke="#ffd400" stroke-width="2.5"/>
+          <line x1="12" y1="24" x2="36" y2="24" stroke="#ffd400" stroke-width="2.5"/>
+          <line x1="12" y1="32" x2="28" y2="32" stroke="#ffd400" stroke-width="2.5"/>
         </svg>
         <h3>예능 임팩트 자막</h3>
         <p>소리 지르는 순간 중앙에 큰 노란 자막으로 강조</p>
       </div>
 
       <div class="feature-card">
-        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
-          <circle cx="24" cy="24" r="18"/>
-          <path d="M24 14v10l7 7"/>
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="24" cy="24" r="16"/>
+          <line x1="24" y1="12" x2="24" y2="24" stroke="#ffd400" stroke-width="2.5"/>
+          <line x1="24" y1="24" x2="32" y2="32" stroke="#ffd400" stroke-width="2.5"/>
         </svg>
         <h3>목표 길이 지정</h3>
         <p>원하는 영상 길이를 정하면 정확하게 맞춰 자름</p>
       </div>
 
       <div class="feature-card">
-        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
-          <path d="M8 24h32M24 8v32"/>
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="24" cy="24" r="16"/>
+          <line x1="24" y1="8" x2="24" y2="40" stroke="#ffd400" stroke-width="2.5"/>
+          <line x1="8" y1="24" x2="40" y2="24" stroke="#ffd400" stroke-width="2.5"/>
+          <circle cx="24" cy="24" r="5" fill="none" stroke="#ffd400" stroke-width="2"/>
         </svg>
         <h3>GPU 가속</h3>
         <p>GPU 인코딩으로 빠른 영상 변환</p>
       </div>
 
       <div class="feature-card">
-        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
-          <path d="M10 20h28c2 0 4 2 4 4v16c0 2-2 4-4 4H10c-2 0-4-2-4-4V24c0-2 2-4 4-4z"/>
-          <circle cx="24" cy="20" r="3"/>
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="8" y="14" width="32" height="24" rx="3"/>
+          <circle cx="24" cy="18" r="2.5" fill="#ffd400"/>
+          <path d="M14 32 L24 22 L34 28" stroke="#ffd400" stroke-width="2.5" fill="none"/>
         </svg>
         <h3>자동 클로즈업</h3>
         <p>캠/버튜버 얼굴 자동 감지 및 클로즈업·펀치인</p>
       </div>
 
       <div class="feature-card">
-        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
-          <rect x="8" y="10" width="32" height="28" rx="2"/>
-          <path d="M14 20h20M14 28h12"/>
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="8" y="8" width="32" height="32" rx="4"/>
+          <rect x="12" y="12" width="24" height="24" rx="2" fill="none"/>
+          <line x1="16" y1="20" x2="32" y2="20" stroke="#ffd400" stroke-width="2.5"/>
+          <line x1="16" y1="28" x2="28" y2="28" stroke="#ffd400" stroke-width="2.5"/>
         </svg>
         <h3>쇼츠 만들기</h3>
         <p>인스타그램 릴스, 틱톡, 유튜브 쇼츠 자동 포맷</p>
       </div>
 
       <div class="feature-card">
-        <svg class="feature-icon" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2">
-          <path d="M12 16v16c0 2 2 4 4 4h16c2 0 4-2 4-4V16"/>
-          <path d="M20 28v4M28 28v4M24 20a4 4 0 100-8 4 4 0 000 8z"/>
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M8 16v16c0 2 2 4 4 4h24c2 0 4-2 4-4V16"/>
+          <line x1="18" y1="28" x2="18" y2="34" stroke="#ffd400" stroke-width="2.5"/>
+          <line x1="30" y1="28" x2="30" y2="34" stroke="#ffd400" stroke-width="2.5"/>
+          <circle cx="24" cy="20" r="3.5" fill="#ffd400"/>
         </svg>
         <h3>점프컷</h3>
         <p>무음 구간 자동 감지 및 제거</p>
@@ -587,10 +943,34 @@
   </div>
 </section>
 
+<!-- Moments Section -->
+<section class="moments">
+  <div class="container">
+    <h2 class="section-moments">이런 순간을 놓치지 않습니다</h2>
+    <div class="moments-grid">
+      <div class="moments-card">
+        <img src="img/art-streamer.jpg" alt="리액션이 터지는 순간" width="720" height="960" loading="lazy">
+        <div class="moments-content">
+          <h3>리액션이 터지는 순간</h3>
+          <p>소리와 채팅이 함께 터지는 순간을 자동으로 찾아냅니다</p>
+        </div>
+      </div>
+      <div class="moments-card">
+        <img src="img/art-desk.jpg" alt="지루한 편집은 프로그램이" width="720" height="960" loading="lazy">
+        <div class="moments-content">
+          <h3>지루한 편집은 프로그램이</h3>
+          <p>몇 시간짜리 다시보기를 몇 분짜리 하이라이트로 정리합니다</p>
+        </div>
+      </div>
+    </div>
+    <p class="moments-caption">* AI로 연출된 예시 이미지입니다</p>
+  </div>
+</section>
+
 <!-- Screenshots -->
 <section class="screenshots">
   <div class="container">
-    <h2>실제 모습</h2>
+    <h2 class="section-screenshots">실제 모습</h2>
     <div class="screenshots-main">
       <img src="img/ui-summarize.png" alt="라이브 하이라이트 메이커 - 요약 화면" loading="lazy">
     </div>
@@ -621,7 +1001,7 @@
 <!-- FAQ -->
 <section class="faq">
   <div class="container">
-    <h2>자주 묻는 질문</h2>
+    <h2 class="section-faq">자주 묻는 질문</h2>
     <div class="faq-grid">
       <div class="faq-item">
         <h4>💰 정말 무료인가요?</h4>
@@ -649,7 +1029,7 @@
 <!-- CTA Section -->
 <section class="cta-section">
   <div class="container">
-    <h2>지금 시작하세요</h2>
+    <h2 class="section-cta">지금 시작하세요</h2>
     <div class="cta-group">
       <a href="https://github.com/h3418kr/live-highlight-maker/releases/latest" class="btn btn-primary">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">

@@ -41,3 +41,4 @@ Thumbs.db
 ffmpeg/
 *.pt
 gemini_key.txt
+openai_key.txt

@@ -351,6 +351,24 @@ Combine the summary video + (edited) subtitles + thumbnail image into an upload-
 
 ---
 
+## 🔐 API Key Security Guide
+
+**Important information about safely using and storing your API keys.**
+
+1. **Storage location and transmission path**: API keys are stored only in `gemini_key.txt` / `openai_key.txt` in the program folder. When AI features are used, they are sent only to Google and OpenAI's official API servers (HTTPS). They are never transmitted to or collected by the developer or any third-party servers.
+
+2. **Caution when sharing folders**: Be careful not to include key files when sharing the entire program folder with others or uploading it to the cloud. (Official distribution zips do not include key files.)
+
+3. **Damage mitigation tips**:
+   - **OpenAI**: Set a usage limit in your billing settings on platform.openai.com — if your key is leaked, losses are capped at that limit.
+   - **Gemini**: The free tier doesn't require payment method linkage, so there's no financial risk if the free key leaks.
+
+4. **If key leaks are suspected**: Immediately revoke the key from the relevant site (aistudio.google.com or platform.openai.com) and generate a new one.
+
+5. **Disclaimer**: You are responsible for storing and using your API keys, and for any charges or losses from key leaks. This program is provided without warranty under the MIT License.
+
+---
+
 ## 📥 Installation
 
 ### A) Portable build (recommended — no Python needed)

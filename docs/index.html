@@ -6,6 +6,13 @@
   <meta name="description" content="방송 다시보기를 넣으면 하이라이트 요약본이 나오는 무료 프로그램. 자막 자동 생성, 소리와 채팅 반응 분석, 음성 피크 강조 자막 지원.">
   <meta property="og:title" content="라이브 하이라이트 메이커 — 방송 다시보기를 10분 하이라이트로">
   <meta property="og:description" content="무료·오픈소스·무설치. 3시간 방송을 10분 하이라이트로 변환. Windows 64bit.">
+  <meta property="og:image" content="https://h3418kr.github.io/live-highlight-maker/img/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="https://h3418kr.github.io/live-highlight-maker/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:image" content="https://h3418kr.github.io/live-highlight-maker/img/og-image.jpg">
   <title>라이브 하이라이트 메이커 — 방송 다시보기를 10분 하이라이트로</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect fill='%23ffd400' width='100' height='100' rx='20'/><path d='M 35 40 Q 35 35 40 35 L 45 35 Q 50 35 50 40 L 50 60 Q 50 65 45 65 L 40 65 Q 35 65 35 60 Z' fill='%230e1116' opacity='0.8'/></svg>">
   <style>
@@ -225,6 +232,12 @@
       border-radius: 20px;
       font-size: 0.875rem;
       font-weight: 500;
+    }
+    .badge-version {
+      background: #1a1600;
+      border-color: #ffd400;
+      color: #ffd400;
+      font-weight: 600;
     }
 
     /* Illustration Section */
@@ -460,8 +473,10 @@
     }
     .features-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(2, 1fr);
       gap: 2rem;
+      max-width: 1000px;
+      margin: 0 auto;
     }
     .feature-card {
       background: #161b22;
@@ -759,6 +774,7 @@
       </a>
     </div>
     <div class="badges">
+      <span class="badge badge-version" id="ver-badge" style="display:none;"></span>
       <span class="badge">무료</span>
       <span class="badge">오픈소스</span>
       <span class="badge">무설치</span>
@@ -890,6 +906,28 @@
         <h3>점프컷</h3>
         <p>무음 구간 자동 감지 및 제거</p>
       </div>
+
+      <div class="feature-card">
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10 12h28c1 0 2 1 2 2v26c0 1-1 2-2 2H10c-1 0-2-1-2-2V14c0-1 1-2 2-2z"/>
+          <line x1="14" y1="18" x2="34" y2="18" stroke="#ffd400" stroke-width="2.5"/>
+          <line x1="14" y1="24" x2="28" y2="24" stroke="#ffd400" stroke-width="2.5"/>
+          <line x1="14" y1="30" x2="26" y2="30" stroke="#ffd400" stroke-width="2.5"/>
+          <line x1="14" y1="36" x2="22" y2="36" stroke="#ffd400" stroke-width="2.5"/>
+        </svg>
+        <h3>사용자 용어집</h3>
+        <p>내 게임 용어를 등록하면 자막 인식이 정확해집니다</p>
+      </div>
+
+      <div class="feature-card">
+        <svg class="feature-icon" width="48" height="48" viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none" stroke="#58c4dc" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M24 8v4M20 12c-4 0-6 2-6 6v16c0 2 1 4 2 4h16c1 0 2-2 2-4V18c0-4-2-6-6-6M16 14h16"/>
+          <circle cx="24" cy="30" r="6" fill="none" stroke="#ffd400" stroke-width="2.5"/>
+          <path d="M24 27v6M21 30h6" stroke="#ffd400" stroke-width="2.5"/>
+        </svg>
+        <h3>완료 알림</h3>
+        <p>작업이 끝나면 소리로 알리고 결과 폴더를 자동으로 엽니다</p>
+      </div>
     </div>
   </div>
 </section>
@@ -1008,6 +1046,26 @@
     </p>
   </div>
 </footer>
+
+<script>
+(function() {
+  const badge = document.getElementById('ver-badge');
+  if (!badge) return;
+
+  fetch('https://api.github.com/repos/h3418kr/live-highlight-maker/releases/latest')
+    .then(r => r.json())
+    .then(d => {
+      const tag = d.tag_name || '';
+      const count = (d.assets || []).reduce((s, a) => s + (a.download_count || 0), 0);
+      const text = '최신 ' + tag + (count > 0 ? ' · 다운로드 ' + count + '회' : '');
+      badge.textContent = text;
+      badge.style.display = 'inline-flex';
+    })
+    .catch(() => {
+      // 실패 시 조용히 숨김 유지
+    });
+})();
+</script>
 
 </body>
 </html>
